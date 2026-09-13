@@ -83,6 +83,7 @@ class DeploymentTests(unittest.TestCase):
             initial = None if missing else {"DB": "single", "DATA_PROJECTION": "old"}
             states = [initial, {"DB": "changed"} if changed else initial]
             calls = []
+            github_output = root / "github-output"
 
             def command(config, *args, **kwargs):
                 calls.append(args)
@@ -93,7 +94,11 @@ class DeploymentTests(unittest.TestCase):
             with (
                 patch.dict(
                     "os.environ",
-                    {"CLOUDFLARE_ACCOUNT_ID": "a" * 32, "CLOUDFLARE_API_TOKEN": "test"},
+                    {
+                        "CLOUDFLARE_ACCOUNT_ID": "a" * 32,
+                        "CLOUDFLARE_API_TOKEN": "test",
+                        "GITHUB_OUTPUT": str(github_output),
+                    },
                 ),
                 patch(
                     "uwcourses_site.deployment.current_commit", return_value=not stale
@@ -110,18 +115,21 @@ class DeploymentTests(unittest.TestCase):
                     deploy(config, root, first=first)
                     self.assertEqual(calls, [])
                     state.assert_not_called()
+                    self.assertFalse(github_output.exists())
                 elif failure or changed or (missing and not first):
                     with self.assertRaises(
                         (ValueError, RuntimeError, subprocess.CalledProcessError)
                     ):
                         deploy(config, root, first=first)
                     self.assertFalse(any(call[0] == "deploy" for call in calls))
+                    self.assertFalse(github_output.exists())
                     self.assertFalse(
                         any("VALUES('serving'" in str(call[-1]) for call in calls)
                     )
                 else:
                     deploy(config, root, first=first)
                     self.assertEqual(calls[-1][0], "deploy")
+                    self.assertEqual(github_output.read_text(), "deployed=true\n")
                     self.assertIn("VALUES('serving'", calls[-2][-1])
                     imports = [call for call in calls if "--file" in call]
                     self.assertEqual(len(imports), 0 if reuse else 2)

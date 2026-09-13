@@ -179,6 +179,9 @@ def deploy(config: Path, site: Path, first: bool = False) -> None:
         "--var",
         f"DEPLOYED_AT:{datetime.now(timezone.utc).isoformat()}",
     )
+    if output_path := os.environ.get("GITHUB_OUTPUT"):
+        with Path(output_path).open("a") as output_file:
+            output_file.write("deployed=true\n")
 
 
 def database_matches(config: Path, release: Release) -> bool:

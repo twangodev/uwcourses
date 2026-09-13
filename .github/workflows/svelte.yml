@@ -495,12 +495,22 @@ jobs:
       - run: tar --zstd -xf website-build.tar.zst
       - run: rm website-build.tar.zst
       - name: Deploy
+        id: deploy
         env:
           GITHUB_TOKEN: ${{ github.token }}
           CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           FIRST_DEPLOYMENT: ${{ inputs.first_deployment || false }}
         run: uv run --locked uwcourses-site deploy
+      - name: Sync Cloudflare endpoint inventory
+        if: steps.deploy.outputs.deployed == 'true'
+        timeout-minutes: 5
+        env:
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          bun x svelte-kit sync
+          bun run cloudflare:endpoints --apply > .site/endpoint-sync.json
       - uses: actions/upload-artifact@v7
         if: always()
         with:
@@ -508,5 +518,6 @@ jobs:
           path: |
             .site/import/status.json
             .site/import/d1-check.json
+            .site/endpoint-sync.json
           include-hidden-files: true
           retention-days: 30

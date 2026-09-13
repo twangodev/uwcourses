@@ -34,6 +34,42 @@ bun run preview --ip 0.0.0.0 --port 4173 --persist-to .site/browser-state
 
 ## Cloudflare setup
 
+### Endpoint inventory
+
+`bun run cloudflare:endpoints` prints the endpoint inventory from the local OpenAPI
+spec without network access. It covers the documented JSON/Markdown and `/api`
+operations, not every HTML page, static asset, or implicit HEAD request.
+
+Set `CLOUDFLARE_ZONE_ID` to the uwcourses.com zone ID and `CLOUDFLARE_API_TOKEN` to a
+token with API Gateway edit access scoped to that zone (the API calls this permission
+Domain API Gateway). Keep the token in your environment, not in the repository.
+
+```sh
+bun run cloudflare:endpoints --plan
+bun run cloudflare:endpoints --apply
+```
+
+The plan reads all existing zone operations and checks the Free plan's 100-entry
+limit, including other hosts in the zone. Apply adds missing operations and verifies
+the resulting inventory. Existing operations are preserved; renamed/removed routes
+are not deleted automatically. Rerunning is safe after a partial failure.
+
+This calls the [operations API](https://developers.cloudflare.com/api/resources/api_gateway/subresources/operations/methods/create/)
+with host, method, and path only. It does not upload schemas, enable validation,
+create routing rules, or configure rate limits. OpenAPI 3.1 can therefore remain the
+source. Review registered operations in Security > Web Assets and matched traffic
+in Security Analytics; available analytics depend on the zone plan.
+
+Production CI runs the sync after a successful Worker deployment, under the same
+deployment lock, and saves `.site/endpoint-sync.json` in the `website-release`
+artifact. Pull requests, superseded releases, and unchanged nightly runs do not
+sync. Add `CLOUDFLARE_ZONE_ID` as a variable in GitHub's `production` environment
+and grant the existing `CLOUDFLARE_API_TOKEN` API Gateway edit access to that zone.
+A sync failure fails the workflow after deployment; the website remains deployed.
+Fix the credentials or capacity issue and rerun the failed job to retry.
+
+### Deployment
+
 The single D1 database is configured in `wrangler.json` as `DB`. Set `CLOUDFLARE_ACCOUNT_ID` as a GitHub variable and `CLOUDFLARE_API_TOKEN` as a secret in the `production` environment. The token needs Workers Scripts and D1 edit permissions. `HF_TOKEN` is optional for the public dataset.
 
 Run the **Svelte** workflow manually with **First deployment** enabled once to create the Worker. Validate its workers.dev preview, then attach `uwcourses.com` in Cloudflare. Subsequent runs leave that option disabled.

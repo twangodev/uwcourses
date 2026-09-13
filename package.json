@@ -3,6 +3,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "cloudflare:endpoints": "node --import tsx web/cloudflare-endpoints.ts",
     "format": "prettier --write .",
     "dev": "vite dev",
     "build": "NODE_OPTIONS=--max-old-space-size=6144 vite build",
