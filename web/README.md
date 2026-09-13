@@ -38,7 +38,11 @@ bun run preview --ip 0.0.0.0 --port 4173 --persist-to .site/browser-state
 
 `bun run cloudflare:endpoints` prints the endpoint inventory from the local OpenAPI
 spec without network access. It covers the documented JSON/Markdown and `/api`
-operations, not every HTML page, static asset, or implicit HEAD request.
+operations, not every HTML page, static asset, or implicit HEAD request. Cloudflare
+requires whole-segment variables, so `/courses/{course}.json` and `.md` map to
+`/courses/{course}`. This groups detail HTML/JSON/Markdown traffic together; more
+specific registered paths take precedence. The current 40 OpenAPI operations
+produce 36 monitoring patterns. Application URLs and OpenAPI remain unchanged.
 
 Set `CLOUDFLARE_ZONE_ID` to the uwcourses.com zone ID and `CLOUDFLARE_API_TOKEN` to a
 token with API Gateway edit access scoped to that zone (the API calls this permission
@@ -52,7 +56,16 @@ bun run cloudflare:endpoints --apply
 The plan reads all existing zone operations and checks the Free plan's 100-entry
 limit, including other hosts in the zone. Apply adds missing operations and verifies
 the resulting inventory. Existing operations are preserved; renamed/removed routes
-are not deleted automatically. Rerunning is safe after a partial failure.
+are not deleted automatically. The sole repair exception is the eight exact
+percent-encoded detail patterns created by the original sync (for example,
+`/courses/%7Bcourse%7D.json`). The plan lists them, and apply removes them only after
+their replacements are verified, then verifies removal. Other hosts and encoded
+paths are preserved. The zone must have room for replacements before cleanup.
+Rerunning is safe after a partial failure.
+Verification retries inventory reads over 17 seconds without repeating writes.
+CI logs record the accepted operation IDs and patterns; a persistent mismatch
+reports the missing and observed operations. Unexpected pattern changes fail
+explicitly rather than silently treating broader coverage as equivalent.
 
 This calls the [operations API](https://developers.cloudflare.com/api/resources/api_gateway/subresources/operations/methods/create/)
 with host, method, and path only. It does not upload schemas, enable validation,
