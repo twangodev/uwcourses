@@ -9,3 +9,6 @@
 /__documents/*
   X-Robots-Tag: noindex
   Cache-Control: public, max-age=0, must-revalidate
+
+/blog/rss.xml
+  Content-Type: application/rss+xml; charset=utf-8

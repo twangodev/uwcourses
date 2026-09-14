@@ -7,7 +7,9 @@ test("course metadata and catalog facts are in HTML before JavaScript runs", asy
   const response = await request.get("/courses/COMPSCI_300?term=1264");
   expect(response.status()).toBe(200);
   const html = await response.text();
-  expect(html).toMatch(/<link[^>]+rel="preload"[^>]+href="\/fonts\/OverusedGrotesk-VF\.woff2"[^>]+as="font"[^>]+crossorigin/);
+  expect(html).toMatch(
+    /<link[^>]+rel="preload"[^>]+href="\/fonts\/OverusedGrotesk-VF\.woff2"[^>]+as="font"[^>]+crossorigin/,
+  );
   expect(html).toContain("COMPSCI 300: Programming II | UW–Madison");
   const scripts = [
     ...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/gs),
@@ -96,9 +98,17 @@ test("sitemaps, redirects, errors and search expose the intended crawl policy", 
     expect(response.status()).toBe(200);
     const sitemap = await response.text();
     expect(sitemap).toContain("<urlset");
-    expect(sitemap).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}T/);
-    expect(sitemap).toContain("<priority>");
-    expect(sitemap).toContain("<changefreq>");
+    if (location === "/blog/sitemap.xml") {
+      expect(sitemap).toContain("<loc>https://uwcourses.com/blog</loc>");
+      for (const [, date] of sitemap.matchAll(/<lastmod>([^<]+)<\/lastmod>/g)) {
+        expect(date).toMatch(/^\d{4}-\d{2}-\d{2}(?:T[^<]+)?$/);
+        expect(Number.isNaN(Date.parse(date))).toBe(false);
+      }
+    } else {
+      expect(sitemap).toMatch(/<lastmod>\d{4}-\d{2}-\d{2}T/);
+      expect(sitemap).toContain("<priority>");
+      expect(sitemap).toContain("<changefreq>");
+    }
   }
   for (const path of ["/subjects", "/stats/COMPSCI"]) {
     const response = await request.get(path + "?term=1264", {
@@ -175,37 +185,47 @@ test("instructor HTML describes its named person and hydration JSON stays out of
   expect(response.headers()["x-robots-tag"]).toBeUndefined();
 });
 
-test('discovery landing pages are indexable while query variants remain excluded', async ({ request }) => {
-  for (const path of ['/search', '/instructors/by-rating-count']) {
+test("discovery landing pages are indexable while query variants remain excluded", async ({
+  request,
+}) => {
+  for (const path of ["/search", "/instructors/by-rating-count"]) {
     const response = await request.get(path);
     expect(response.status()).toBe(200);
     const html = await response.text();
     expect(html).toContain('name="robots" content="index,follow');
-    expect(html).toContain(`rel="canonical" href="https://uwcourses.com${path}"`);
-    for (const query of ['?q=300', '?page=2']) {
+    expect(html).toContain(
+      `rel="canonical" href="https://uwcourses.com${path}"`,
+    );
+    for (const query of ["?q=300", "?page=2"]) {
       const filtered = await request.get(path + query);
       expect(filtered.status()).toBe(200);
-      expect(await filtered.text()).toContain('name="robots" content="noindex,follow"');
+      expect(await filtered.text()).toContain(
+        'name="robots" content="noindex,follow"',
+      );
     }
   }
 });
 
-test('social cards match page families and serve valid 1200 by 630 PNGs', async ({ request }) => {
+test("social cards match page families and serve valid 1200 by 630 PNGs", async ({
+  request,
+}) => {
   for (const [path, kind] of [
-    ['/courses/COMPSCI_300', 'courses'],
-    ['/instructors/HOBBES_LEGAULT', 'instructors'],
-    ['/departments/COMPSCI', 'departments'],
-    ['/explorer/COMPSCI', 'maps'],
+    ["/courses/COMPSCI_300", "courses"],
+    ["/instructors/HOBBES_LEGAULT", "instructors"],
+    ["/departments/COMPSCI", "departments"],
+    ["/explorer/COMPSCI", "maps"],
   ]) {
     const html = await (await request.get(path)).text();
-    expect(html).toContain(`property="og:image" content="https://uwcourses.com/social/pages${path}.png"`);
+    expect(html).toContain(
+      `property="og:image" content="https://uwcourses.com/social/pages${path}.png"`,
+    );
     expect(html).toContain('name="twitter:card" content="summary_large_image"');
     expect(html).toContain('property="og:image:alt" content="UW Courses');
     const response = await request.get(`/social/pages${path}.png`);
     expect(response.status()).toBe(200);
-    expect(response.headers()['content-type']).toContain('image/png');
+    expect(response.headers()["content-type"]).toContain("image/png");
     const png = await response.body();
-    expect(png.subarray(0, 8).toString('hex')).toBe('89504e470d0a1a0a');
+    expect(png.subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
     expect(png.readUInt32BE(16)).toBe(1200);
     expect(png.readUInt32BE(20)).toBe(630);
     expect(png.length).toBeLessThan(300_000);
