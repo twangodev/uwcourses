@@ -1,0 +1,20 @@
+---
+title: Welcome to the UW Courses blog
+description: A place for updates and notes on exploring courses, prerequisites, and grades.
+date: "2026-09-13"
+draft: false
+---
+
+UW Courses brings course descriptions, prerequisites, historical grades, and instructor information together in one place. This blog is a home for updates and notes about the site.
+
+## Start exploring
+
+- [Search courses](/search) to find a class by name or course code.
+- [Browse departments](/departments) to explore a subject.
+- [Explore prerequisite maps](/explorer) to see how courses connect.
+
+Historical grades can provide context when comparing classes, but they do not measure workload or predict how a course will go for you. Read the course description and prerequisites alongside the numbers.
+
+## Follow along
+
+You can find the source code and contribute on [GitHub](https://github.com/twangodev/uwcourses).

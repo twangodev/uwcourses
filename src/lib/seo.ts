@@ -69,6 +69,7 @@ export function pageSeo(data: any, pathname: string, status = 200) {
   const graph: Record<string, unknown>[] = [];
   const noindex =
     status >= 400 ||
+    Boolean(data.post?.draft) ||
     ((pathname === "/search" || pathname === "/instructors/by-rating-count") &&
       data.discoveryFiltered !== false) ||
     Boolean(data.collection && data.results?.total === 0) ||
@@ -77,6 +78,29 @@ export function pageSeo(data: any, pathname: string, status = 200) {
     title = `${status === 404 ? "Page not found" : "Page unavailable"} | UW Courses`;
     description =
       "This page is unavailable. Browse UW–Madison courses by department.";
+  } else if (pathname === "/blog" || data.post) {
+    title = `${data.post?.title || "Blog"} | UW Courses`;
+    description =
+      data.post?.description ||
+      "Updates and notes on exploring UW–Madison courses.";
+    graph.push(
+      breadcrumbs([
+        { name: "Home", path: "/" },
+        { name: "Blog", path: "/blog" },
+        ...(data.post
+          ? [{ name: data.post.title, path: `/blog/${data.post.slug}` }]
+          : []),
+      ]),
+    );
+    if (data.post)
+      graph.push({
+        "@type": "BlogPosting",
+        "@id": absoluteUrl(path) + "#post",
+        headline: data.post.title,
+        description,
+        datePublished: data.post.date,
+        mainEntityOfPage: absoluteUrl(path),
+      });
   } else if (pathname === "/stats") {
     graph.push(breadcrumbs([{ name: "Home", path: "/" }, { name: "Campus stats", path: "/stats" }]));
     title = "UW–Madison Statistics: Classes, Campus & Grades | UW Courses";
@@ -212,7 +236,9 @@ export function pageSeo(data: any, pathname: string, status = 200) {
     (pathname === "/stats" || data.course || data.subject || (data.instructor && data.socialImage));
   if (!noindex) {
     const entity = graph.find((item) =>
-      ["Course", "Person", "ItemList"].includes(String(item["@type"])),
+      ["Course", "Person", "ItemList", "BlogPosting"].includes(
+        String(item["@type"]),
+      ),
     );
     const breadcrumb = graph.find((item) => item["@type"] === "BreadcrumbList");
     if (breadcrumb) breadcrumb["@id"] = canonical + "#breadcrumb";

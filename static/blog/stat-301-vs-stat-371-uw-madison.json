@@ -1,0 +1,1244 @@
+{
+  "source": {
+    "repository": "twangodev/uwcourses",
+    "revision": "e243353dcb7d79b7247ced91d69443ef4c2a6349",
+    "projection_id": "85abe9ff8837c2c5a134368dcc4cfc85eb723524b21ddeb3d2e953887d2f0c8f",
+    "observed_at": "2026-09-07T15:55:43.033547+00:00"
+  },
+  "review_window": {
+    "start": "2021-09-01",
+    "end": "2026-09-07"
+  },
+  "grade_window": {
+    "start": "1222",
+    "end": "1264"
+  },
+  "courses": [
+    {
+      "code": "STAT 301",
+      "uid": "course_bf80347054c4234ada79c07e",
+      "pooled": {
+        "counts": {
+          "a": 999,
+          "ab": 448,
+          "b": 809,
+          "bc": 591,
+          "c": 763,
+          "d": 202,
+          "f": 86
+        },
+        "n": 3898,
+        "gpa": 2.87237044638276,
+        "a_percent": 25.628527449974346
+      },
+      "terms": [
+        {
+          "term": "1222",
+          "counts": {
+            "a": 135,
+            "ab": 77,
+            "b": 97,
+            "bc": 58,
+            "c": 55,
+            "d": 17,
+            "f": 10
+          },
+          "n": 449,
+          "gpa": 3.056792873051225,
+          "a_percent": 30.066815144766146
+        },
+        {
+          "term": "1224",
+          "counts": {
+            "a": 100,
+            "ab": 40,
+            "b": 77,
+            "bc": 61,
+            "c": 79,
+            "d": 20,
+            "f": 14
+          },
+          "n": 391,
+          "gpa": 2.817135549872123,
+          "a_percent": 25.575447570332482
+        },
+        {
+          "term": "1232",
+          "counts": {
+            "a": 93,
+            "ab": 42,
+            "b": 85,
+            "bc": 66,
+            "c": 77,
+            "d": 18,
+            "f": 9
+          },
+          "n": 390,
+          "gpa": 2.848717948717949,
+          "a_percent": 23.846153846153847
+        },
+        {
+          "term": "1234",
+          "counts": {
+            "a": 83,
+            "ab": 52,
+            "b": 80,
+            "bc": 63,
+            "c": 72,
+            "d": 25,
+            "f": 11
+          },
+          "n": 386,
+          "gpa": 2.7992227979274613,
+          "a_percent": 21.502590673575128
+        },
+        {
+          "term": "1242",
+          "counts": {
+            "a": 99,
+            "ab": 38,
+            "b": 82,
+            "bc": 58,
+            "c": 79,
+            "d": 18,
+            "f": 14
+          },
+          "n": 388,
+          "gpa": 2.8247422680412373,
+          "a_percent": 25.515463917525775
+        },
+        {
+          "term": "1244",
+          "counts": {
+            "a": 93,
+            "ab": 42,
+            "b": 72,
+            "bc": 55,
+            "c": 94,
+            "d": 14,
+            "f": 7
+          },
+          "n": 377,
+          "gpa": 2.850132625994695,
+          "a_percent": 24.6684350132626
+        },
+        {
+          "term": "1252",
+          "counts": {
+            "a": 92,
+            "ab": 42,
+            "b": 74,
+            "bc": 60,
+            "c": 76,
+            "d": 20,
+            "f": 6
+          },
+          "n": 370,
+          "gpa": 2.862162162162162,
+          "a_percent": 24.864864864864863
+        },
+        {
+          "term": "1254",
+          "counts": {
+            "a": 106,
+            "ab": 42,
+            "b": 84,
+            "bc": 53,
+            "c": 85,
+            "d": 18,
+            "f": 5
+          },
+          "n": 393,
+          "gpa": 2.909669211195929,
+          "a_percent": 26.97201017811705
+        },
+        {
+          "term": "1262",
+          "counts": {
+            "a": 95,
+            "ab": 36,
+            "b": 79,
+            "bc": 59,
+            "c": 69,
+            "d": 34,
+            "f": 2
+          },
+          "n": 374,
+          "gpa": 2.840909090909091,
+          "a_percent": 25.40106951871658
+        },
+        {
+          "term": "1264",
+          "counts": {
+            "a": 103,
+            "ab": 37,
+            "b": 79,
+            "bc": 58,
+            "c": 77,
+            "d": 18,
+            "f": 8
+          },
+          "n": 380,
+          "gpa": 2.8828947368421054,
+          "a_percent": 27.105263157894736
+        }
+      ],
+      "captured_reviews": 141,
+      "review_records": [
+        {
+          "source_review_id": "UmF0aW5nLTM2MTE3OTUx",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2022-04-21 02:19:54 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "50e1e7c70770ffc5d42b7d02b9a86b6c75305727d14837fffa48ac047d88bef4"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MTYyMjk4",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2022-04-26 22:02:40 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "99a8256ca36aae047e0536f75ebbbbc4d3b6343482a5fdb9aee701ed5bbb671b"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MTg4MzU4",
+          "source_instructor_id": "rmp:2444781",
+          "instructor_name": "Mitchell Paukner",
+          "review_date": "2022-04-29 00:56:36 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2444781",
+          "comment_sha256": "c9d10781699bd915bc2be83f93e54baf3cb9861857087494407b38bff1fa44c7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2Mjg4MTUz",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2022-05-09 19:20:42 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "ff76e45a53c067ca39d4197d36f261220267f70607bdc4b686084bca9182bc48"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MzAyOTQ1",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2022-05-10 22:55:47 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "baba852d38dddcbc00dc685076b17e73b6675a83d7c5e1aa2420d309804ede3c"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2Njc1Njky",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2022-10-04 04:20:45 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "5efced1c56048fd1b57b27c751999013e40e88515308c1bcc30cf2fefdb81286"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3MzQxMDUx",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-01-17 00:21:07 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "70c9cc9376771026511061802c9a81517dfd5575d067eca7bf090693860ae159"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3ODg1Mjkw",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-05-10 16:43:38 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "d63785f4abbe1005dd9f786dea8fed17c9138c709199eccda1c941cd275a4bc1"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3OTMxMTI1",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-05-15 23:59:48 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "2a67d224133f8a379686b3e724526b58167adb21177e00d76abbe2c859c5cb2c"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4MTk5NjA0",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-09-01 13:46:00 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "d600ddce50c7ea2df850c72876241f293e93b7e0bdfcc6c79b9cff7732f53dbe"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4MjE4MzQ5",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-09-15 02:57:56 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "103fcece81e00137b0a25f8358b83365c91c81d6afd2fe9a1db6e2feddb03bb7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4Mzc2MTE4",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-11-11 23:08:02 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "7a517822f225af85a1c9cbaa4581864efd342469c881b1a55985f460d9e9a246"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4NDM0NTAw",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-11-24 20:01:55 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "3d854524a88ae6039ee5c477ac9d131e6a9f193cae8e31c6f4065521ba8d4696"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4NjA5OTMz",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-12-11 17:32:32 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "76ae29b8d5ed80f8cb92c4b009f649695e287fe535ceb65c4b9601cb755f6643"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4NzQ3NzQw",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2023-12-19 23:03:21 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "087dcd3f9089a5a39c434f571d01810d2e5c3985e2bb370242dcbaa29b0e2d9a"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5MDUzNjcz",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2024-03-15 16:24:56 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "6e8e0238cc23b62547304bf1e99277130ecf4582779efc36364c402b657eba7b"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5MDY3MzI3",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2024-03-20 05:34:27 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "dc3373ef2dfb607503337c7c8262c12dd08b7ec811da1cb3a884c938934e72b9"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5NDM1NzY2",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2024-05-11 01:25:53 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "8d381ca773b64b42e90b48b6b707a76d6fdefae6244e57b3d48e9106e322ea6c"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5ODA0NjI2",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2024-10-11 02:41:46 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "bf7bab711c6283d80570890ff70d2d3ef9773c3a51a98801ea11ca27158509f8"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQwMjUxNzU5",
+          "source_instructor_id": "rmp:2572977",
+          "instructor_name": "Gloria Mendoza",
+          "review_date": "2024-12-12 17:52:54 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2572977",
+          "comment_sha256": "2229c1da407fbb0ee91b870835675678a84698669139f8e268ce6b9f92f754bb"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQwNzIyNjE5",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-03-01 06:05:56 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "62bf5c60c72d521979bcbce94cfbb712f42ccca610f83935436fe527c12c4286"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMDQ5Mjgz",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-04-25 21:18:25 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "6e88e811807892c614893efd9ceddcd217e5767ce913b0403ef590c0d2ac0cb7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMTEyMzM3",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-05-01 02:38:57 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "d937cd01ecf51edcc918b2b2fcbb8ceecba25565493340270ac1ce46ef767300"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMTM0Mjk2",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-05-04 15:18:27 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "871ddd4afcb48bab344eedbc5194c69fdfbf673816f57711a8ed5e830bf86c54"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMjM3NzIx",
+          "source_instructor_id": "rmp:1567077",
+          "instructor_name": "John Gillett",
+          "review_date": "2025-05-10 18:11:04 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/1567077",
+          "comment_sha256": "2b4dcbc3a7c796344e539668d03c79f206418ea901eb3b1f26aef05034a7fb4c"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMjY1NDU2",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-05-13 14:29:53 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "3da5c246de867045d55f6763e969aa94b4b26d741db1eec6e95ea7d11af5d23f"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxNTQ1NTMz",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-08-04 01:40:09 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "96f22fb7b2f308979748a504d9b472c73998cbede39b278502ab51e867c8a93a"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxODc1MTE4",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-11-16 00:36:14 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "5ac05d3880577c6280a2c64196572c63c0542940e3ed13b3484e2b83611a7207"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyMjAwNzIw",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-12-12 05:06:35 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "36248942717330740a0ff87143bf2da8e63d8281c0f741d6b348c389d59af34e"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyMzUwNDIw",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-12-19 20:30:06 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "aa8bec8c462583c34b257701dd334c5b87885826bd94d26c07acf8029fcef47c"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyMzUwNTE4",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-12-19 20:36:37 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "aa48668b3e8fdb18e8f49521c1a142364fc88f160ba6612f62af253098eeac02"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyMzU1Mjcx",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-12-20 02:38:29 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "0c2a9226c167beb597326200c12f6afdc69c54b4aad8e021c1f016f6aa0b6b43"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyMzY4MTQ3",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-12-21 17:55:13 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "e338c7148b3259a2bc754dd3cff47c269b92a08187106105754113e3dd21beb7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyNTI1Mjk0",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2026-01-20 20:55:49 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "4671c8d535a44e9b52e72d19bf835ee6ff6fd5dfcb46bde1d6861a6b7bf560e1"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyNTU5NzEw",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2026-01-28 18:40:12 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "36063b411e74d4404e0e90b729685da8ca0fff0c9935e485940a8f36ff6d51e7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyNjU5MDY1",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2026-03-02 22:49:38 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "6b544aa44446bbea078a1bb1e1a0332aac030e01f81c2fb7ed26d5ecd7cbf750"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyNzMzMzUy",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2026-03-24 21:57:56 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "8c12b010c761cbdf05f6ac7b7b1a2cc0eadb766a764506fa349094f38452afaa"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyODA4NjA0",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2026-04-09 21:49:05 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "dd3103f5dcaabff504170477c0f612b9b06ed328d6df26b172be92309bac1fd5"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyODU1NDEz",
+          "source_instructor_id": "rmp:2158238",
+          "instructor_name": "Derek Bean",
+          "review_date": "2026-04-16 21:46:52 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2158238",
+          "comment_sha256": "2979845a195e691e1a1e7950551cec06bc62bad34b31683e6e620030fdee91de"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQzMzk3MTY4",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2026-08-29 20:57:32 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "96e2cf73d03391825632646efa22505526c85f2dac14bdfc7c02b2cdcc475249"
+        }
+      ],
+      "review_counts_by_instructor": {
+        "Gloria Mendoza": 19,
+        "Mitchell Paukner": 1,
+        "Bi Cheng Wu": 18,
+        "John Gillett": 1,
+        "Derek Bean": 1
+      }
+    },
+    {
+      "code": "STAT 371",
+      "uid": "course_31fb5b7b6bf20ca63e33bd46",
+      "pooled": {
+        "counts": {
+          "a": 1399,
+          "ab": 610,
+          "b": 1130,
+          "bc": 764,
+          "c": 979,
+          "d": 268,
+          "f": 84
+        },
+        "n": 5234,
+        "gpa": 2.914978983568972,
+        "a_percent": 26.72907909820405
+      },
+      "terms": [
+        {
+          "term": "1222",
+          "counts": {
+            "a": 164,
+            "ab": 58,
+            "b": 135,
+            "bc": 89,
+            "c": 117,
+            "d": 16,
+            "f": 8
+          },
+          "n": 587,
+          "gpa": 2.9582623509369674,
+          "a_percent": 27.938671209540033
+        },
+        {
+          "term": "1224",
+          "counts": {
+            "a": 153,
+            "ab": 100,
+            "b": 148,
+            "bc": 77,
+            "c": 90,
+            "d": 20,
+            "f": 9
+          },
+          "n": 597,
+          "gpa": 3.012562814070352,
+          "a_percent": 25.628140703517587
+        },
+        {
+          "term": "1232",
+          "counts": {
+            "a": 133,
+            "ab": 58,
+            "b": 104,
+            "bc": 83,
+            "c": 109,
+            "d": 24,
+            "f": 12
+          },
+          "n": 523,
+          "gpa": 2.861376673040153,
+          "a_percent": 25.430210325047803
+        },
+        {
+          "term": "1234",
+          "counts": {
+            "a": 140,
+            "ab": 64,
+            "b": 97,
+            "bc": 67,
+            "c": 90,
+            "d": 19,
+            "f": 17
+          },
+          "n": 494,
+          "gpa": 2.918016194331984,
+          "a_percent": 28.34008097165992
+        },
+        {
+          "term": "1242",
+          "counts": {
+            "a": 142,
+            "ab": 44,
+            "b": 105,
+            "bc": 83,
+            "c": 114,
+            "d": 31,
+            "f": 7
+          },
+          "n": 526,
+          "gpa": 2.8583650190114067,
+          "a_percent": 26.99619771863118
+        },
+        {
+          "term": "1244",
+          "counts": {
+            "a": 132,
+            "ab": 46,
+            "b": 99,
+            "bc": 73,
+            "c": 95,
+            "d": 31,
+            "f": 10
+          },
+          "n": 486,
+          "gpa": 2.8590534979423867,
+          "a_percent": 27.160493827160494
+        },
+        {
+          "term": "1252",
+          "counts": {
+            "a": 146,
+            "ab": 56,
+            "b": 116,
+            "bc": 88,
+            "c": 113,
+            "d": 45,
+            "f": 7
+          },
+          "n": 571,
+          "gpa": 2.8353765323992994,
+          "a_percent": 25.569176882661996
+        },
+        {
+          "term": "1254",
+          "counts": {
+            "a": 126,
+            "ab": 38,
+            "b": 87,
+            "bc": 67,
+            "c": 86,
+            "d": 25,
+            "f": 7
+          },
+          "n": 436,
+          "gpa": 2.895642201834862,
+          "a_percent": 28.89908256880734
+        },
+        {
+          "term": "1262",
+          "counts": {
+            "a": 130,
+            "ab": 92,
+            "b": 134,
+            "bc": 69,
+            "c": 63,
+            "d": 22,
+            "f": 1
+          },
+          "n": 511,
+          "gpa": 3.0616438356164384,
+          "a_percent": 25.44031311154599
+        },
+        {
+          "term": "1264",
+          "counts": {
+            "a": 133,
+            "ab": 54,
+            "b": 105,
+            "bc": 68,
+            "c": 102,
+            "d": 35,
+            "f": 6
+          },
+          "n": 503,
+          "gpa": 2.8727634194831015,
+          "a_percent": 26.44135188866799
+        }
+      ],
+      "captured_reviews": 156,
+      "review_records": [
+        {
+          "source_review_id": "UmF0aW5nLTM1MTA1MjEy",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-10-05 20:56:50 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "f05e6d38f4426c2d18bbe4aaadc526af0bc9b6e8a82e0a2082a5ecb4e5713cfa"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1MTIyODg5",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-10-13 21:35:16 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "2d4a668fab4a996b44258ea17f0dd0f5a0f2e318b7b58aa67cdd6d0915c55c40"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1MTI2NzIz",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-10-15 02:05:18 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "dae72795512a565bfa3b2e91d23bfcd68db105ba58444d5656c3d81a328504ac"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1MTUzNDU5",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-10-25 20:24:37 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "640ebe5d1b6e2e092bdae02009a02db56bb884065948761a4a369ea1e8ff1b02"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1MTYzNDcx",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-10-28 01:44:06 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "370e7484e14dcae5c7bc20ee3929fa19af6ab5b522b7f75a36d7fdf8e016d038"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1MTY2NjYw",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-10-28 21:04:59 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "0e5624ed799aa329e446490acb15181a96b55dee7afc2bc2867f25545255ada4"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1MjMzNTQy",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-11-13 00:50:40 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "ef443f1985587b2dec5e5f6ceed666f1b86829e2e35e60e4eaf1baa4814876e6"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1MjcyNTgx",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2021-11-19 04:01:46 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "b676e86b856db5530fedcb79e3a2805e85fab28d2cec465ca6d97af17b081d50"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1Mjc1MTMx",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2021-11-19 17:38:05 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "7a5ddea9a4de8589e12a96f700b5521c3fcf5d545523937727b77a4922133e55"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NDA1NTEw",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-07 22:04:23 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "4661594fee81d46bb77d03334e918d3bb02adc933f463c767414937db5b6fb16"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NDUwMjc0",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-10 02:40:32 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "288cdf1cd86dc2ce641fa9d6c432da772819c0b6d9aef0e88f52995036f48ea4"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NTAzNjIz",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-13 22:08:21 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "53afe0bd8a5f90277de5f9bd38d4d0fd2d5f1db04921097c8eac8b23f29eb3df"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NTIyNTc1",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-14 20:39:31 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "fac6e9f85866afea2310ef80f4d830e0c51f284712659e925ec0d9e1e80b0ebb"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NjA0MTUw",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-20 05:49:40 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "436bedfd9ac691ddff9f758d87583d5019cd6a7a19ad3e070b52d9b177e8ac35"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NjM4NjYx",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-23 03:13:22 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "d7bbb422369ea8c0db6f111cdb3ac0fa49318ae2d7c0ab75179a27d1f1369fce"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NjU1NzEz",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2021-12-26 06:26:13 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "74783590e4d069d5ceb867e6b12d0ce368806ae2fd8a0abbf4c21a5b4fcbff49"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1Njc2NDMz",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-30 06:19:12 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "df8fad6634758ccdd8c65eaea30c080bd36d13ab60e2951a802648bf609faaf0"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1NjgwNDUw",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2021-12-31 05:48:18 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "8d564fc1783907cdeb97cdc6311787fe03440d5aede5e6bc83ff8bfe2db664ae"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1Njk1MDY3",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2022-01-04 03:01:14 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "62bf80dc9979666c726afff24d0f6ef4930caf19f45c132c4b86e04cd712ac10"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1ODAxNzM4",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2022-01-27 00:49:24 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "68d165722c4f22d61bc9adfdaf29f2a4555302f139e2dace224fe02be84d34d7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM1OTE2ODky",
+          "source_instructor_id": "rmp:2723055",
+          "instructor_name": "Michael Culbertson",
+          "review_date": "2022-03-08 23:07:39 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2723055",
+          "comment_sha256": "9481ce3baf4786359b2b23bb7d4160d922dcf52d71952615f0608d30af63c8d2"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MDM0OTQ5",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-04-07 02:20:11 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "d8bfdfee7f232a0d0cf3fb08b1dee63ae15673b90e6fd3e76d9029e43a76a482"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MTU2OTMw",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-04-26 15:59:29 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "f9d134e7d5ff0267bee8312f330a99233347a066cb795f962c251f7cf1d38e89"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MTc2OTYx",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-04-28 02:12:54 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "bafe09eff4919947439705c5afc9fb08e49ceb584a5475bc83e6978b685ba39b"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MTc3MDA4",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-04-28 02:16:55 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "9152b04b833686c9392dd1bf03194b5967ff884b3c789eaf55ff5e7707554fc4"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MTc4MjEw",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-04-28 04:31:44 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "c0565d6dc9b935fbf3d00dfc829dec6f62af9f33dbbe3904db0f070b82cb254b"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MjU4Nzg4",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2022-05-05 23:53:20 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "f363f604ef05840b5e0baaee8f1b7ce58bd454168c204e01c85a9e09be0e64c6"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MjY4Mjk2",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-05-06 21:57:23 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "4a264bb62fd8d9cf8d3ff5e326bcb7e94aae23db4b8ae4ec2b6edd900fdf08e9"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2Mjg5MDQw",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-05-09 20:26:14 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "82308ddc5084d650e69d1c0f3ea9f10f34ec42a08065524b80db25ede638d989"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MjkwNDE3",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-05-09 22:10:53 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "2be68eaa058ba78e1d4f0e859432e7494d94a9d6db6cb59e4fadb0dffd219e13"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MzM5NzA3",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-05-14 20:48:05 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "d2a6aca086a0a5f2e70a06da7123a7291b5c168929dfee8e8d3e82c3565891c7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MzUyMDUw",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-05-16 20:46:28 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "13ba809a7f9273bc5f76128146c1616479838d1329d162e26cf8be47fe068e92"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MzU0Mzg3",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2022-05-17 01:00:56 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "c77d236f1dd1451c035f02d9ad29b8a3eababd9899f824c27ee64f37845cfb15"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MzU5MDg1",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-05-17 17:31:01 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "2849adf959f3e25eb50eb2f6deaddbc3caa32eedbce0757b7ea84e188233142c"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2MzYzMDQ0",
+          "source_instructor_id": "rmp:2759781",
+          "instructor_name": "Amy Beyler",
+          "review_date": "2022-05-18 00:27:04 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2759781",
+          "comment_sha256": "8babd505096021474e28606c1cdcd09c04eb39ee6fd2cd8d4521dfd1ed8b4bf4"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2NjA0NjA3",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2022-08-23 04:44:05 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "90de2c66e85cafdc5e75f65f55811625ffe305224dc60cf7e89fabf3c9883d5f"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM2NjI4NDM3",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2022-09-05 20:26:51 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "ff5cc19f151bcd7a57e2876dd38b4179f7ace7cbf6cd485c25bec589f63b2a4b"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3MTExMDM1",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2022-12-14 04:30:08 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "e439fed75895529c2dbd10ca9542405babebfca3ebccc44cb51921c3da5dbc7e"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3MjQ0NTg4",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2022-12-26 07:32:25 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "3c9bfec9f94a25f55b5b3386d047b60e527a1c918d62e49ff2ff3040e3326841"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3MzgzMDE5",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2023-01-26 21:35:31 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "4d0470eb67cac09851a94f0c9e6c18588e2af95cb077bc1b674ec86392708e02"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3NDE2MDMz",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2023-02-08 04:35:10 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "7a23c020634e778256086fc90dbc62b194e734f918f2a722871d5a362c3833b6"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM3ODAzNzE4",
+          "source_instructor_id": "rmp:1567077",
+          "instructor_name": "John Gillett",
+          "review_date": "2023-05-03 14:05:06 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/1567077",
+          "comment_sha256": "0362f6ede9ff60b9065530511ec8f52fe1b847ccb734a7eb6326314a5463caf8"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4MzI3MjM1",
+          "source_instructor_id": "rmp:2243896",
+          "instructor_name": "Chelsey Green",
+          "review_date": "2023-11-01 07:00:32 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2243896",
+          "comment_sha256": "cff7de5464bb28b807b1cacc85d51aa8a71a2ed8e236b609c4be53689ab58cf2"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4ODQwNDgz",
+          "source_instructor_id": "rmp:2944171",
+          "instructor_name": "Jana Ranson ",
+          "review_date": "2024-01-06 20:02:04 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2944171",
+          "comment_sha256": "734cda691a27e62d741d0069b2ea3bb0143d9e6eb35958b9ed5b4ae8f0475d7f"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM4OTEzNDM2",
+          "source_instructor_id": "rmp:2944171",
+          "instructor_name": "Jana Ranson ",
+          "review_date": "2024-01-23 01:17:38 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2944171",
+          "comment_sha256": "70e838288d347ce26b78fad024b019976b6933d03ad8ef261ff36d8907edb916"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5MzQyMzA1",
+          "source_instructor_id": "rmp:1567077",
+          "instructor_name": "John Gillett",
+          "review_date": "2024-05-02 17:59:25 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/1567077",
+          "comment_sha256": "4c5b78700facb4a29d770c0c386caa85fe15c03a84a85f19e9b1479b930bfdef"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5NDYyMDUz",
+          "source_instructor_id": "rmp:1567077",
+          "instructor_name": "John Gillett",
+          "review_date": "2024-05-14 19:53:11 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/1567077",
+          "comment_sha256": "61943181cc218f379581e9da24b7d92da158f8a0802873114561cce0fe0e5970"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5NjY4NzM2",
+          "source_instructor_id": "rmp:1567077",
+          "instructor_name": "John Gillett",
+          "review_date": "2024-08-07 19:56:54 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/1567077",
+          "comment_sha256": "b1e552b4a3b9af363bde829b0855e52f208c7838c0b9e29cae782e664a35d2a0"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTM5NzUwMzEz",
+          "source_instructor_id": "rmp:1567077",
+          "instructor_name": "John Gillett",
+          "review_date": "2024-09-18 19:32:53 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/1567077",
+          "comment_sha256": "bb1f172df747db5dcca89d62392ff5b951bdac4a520aed558a5d3b123d5ecafe"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQwOTI2ODIy",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-04-12 22:24:07 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "175525c922eb2f8e8b6bbab54a85f3808735f7998adf013e79b37b9c884c5332"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQwOTYzMjIx",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-04-17 03:08:12 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "970bbe821a28ae7ca07f8ac80fd3a58890edb90d7fc422a9ff8fe3e66c1db439"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQwOTkzNzk1",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-04-21 19:07:48 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "3d3f00d32d7a02acf8568e91bd54ad94e50d76a89000e2e906d8e372886cc4dd"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMDkzMTEy",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-04-29 23:38:30 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "79250e13d89f021db80dfb5d71981aa014bd33312646391f746bd7cce5f7b6a9"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMTMwMjcw",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-05-02 03:54:03 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "d11226652fac71a33897330750f6ca2a98fb781a5d97e0b6fa6bdc5aa84a4d96"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMTM2MTQ3",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-05-02 18:28:43 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "b55cf3085660f305a4244e7165dd3360ef7df8b44c6efb9c7bf5a82e420c6441"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMTQxNTk4",
+          "source_instructor_id": "rmp:1567077",
+          "instructor_name": "John Gillett",
+          "review_date": "2025-05-03 02:42:56 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/1567077",
+          "comment_sha256": "28b4f27fec1932d5a2f4bcc5c3fadba6272a90c86c027622a1161cbccb3994ba"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMjQzNTMz",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-05-11 15:40:35 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "b516ec35ae2874912b7e1213c830d42e57d65173309591008b185933552788f4"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMjg1MDkx",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-05-14 21:42:07 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "5d4e7ece5a3de5da158536282e514a0d3ae39f2f5017c927546a77fd817f16b7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxMzY3MDI2",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-05-27 00:45:46 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "14eda10b9887e523eb870ed4b9c2d5ce794fe03d8153e8a070e5ebac6456627c"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxNDMyNTEz",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-06-14 05:13:38 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "3b2b2156858e98c882d481b06200b9df7ac5ccccffec98b29f6145686e12c9c3"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQxNTI5MTY1",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2025-07-28 15:19:28 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "98f6b6067bc8638d429b7c89aead0d1b5d081be15e6d10d70de8e12e26d9853b"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyMzgwNjAx",
+          "source_instructor_id": "rmp:2772143",
+          "instructor_name": "Bi Cheng Wu",
+          "review_date": "2025-12-23 02:15:45 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2772143",
+          "comment_sha256": "9262f31a978e409a942db56bb0db19ed2b9b8712fda04ebafa999d3cc1807388"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQyODM0MjM2",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2026-04-14 17:34:07 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "02ba0878dc7fb70f66befe48c7cf7d9d9ddc4e6f670a9f27005de61aa43443f7"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQzMDE0NDA1",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2026-05-04 03:08:11 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "d13f996009533d93e0fd8308efcd9546d810367f9bfd9b6077bf0d4366247cb2"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQzMDIxOTg4",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2026-05-04 20:09:06 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "b0f867ea3a59797816dfb759718621348b77826b3ceedd5bac800d768f79cf20"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQzMDMyMTEy",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2026-05-05 16:49:42 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "ec1a4e69b89b76faadce8d58a0d68c03c893b975d28f1834b408a2672bde4a38"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQzMDM5MTk4",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2026-05-06 00:23:09 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "27053ed21621457efd5e865c9818a1d0212acaf1cb816bc18024aace3a2e0126"
+        },
+        {
+          "source_review_id": "UmF0aW5nLTQzMDgwOTk5",
+          "source_instructor_id": "rmp:2630806",
+          "instructor_name": "Vivak Patel",
+          "review_date": "2026-05-09 19:59:16 +0000 UTC",
+          "source_url": "https://www.ratemyprofessors.com/professor/2630806",
+          "comment_sha256": "b9e4414cdb4f7cee3ed9675f6828b93ca6e8fd8f7516c4c311cafe0ccae02d8a"
+        }
+      ],
+      "review_counts_by_instructor": {
+        "Michael Culbertson": 18,
+        "Chelsey Green": 12,
+        "Amy Beyler": 12,
+        "John Gillett": 6,
+        "Jana Ranson": 2,
+        "Vivak Patel": 17,
+        "Bi Cheng Wu": 1
+      }
+    }
+  ]
+}

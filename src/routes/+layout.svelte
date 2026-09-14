@@ -84,7 +84,11 @@
       ? "noindex,follow"
       : "index,follow,max-image-preview:large"}
   />
-  <meta property="og:type" content="website" />
+  <meta property="og:type" content={page.data.post ? "article" : "website"} />
+  {#if page.data.post}<meta
+      property="article:published_time"
+      content={page.data.post.date}
+    />{/if}
   <meta property="og:site_name" content="UW Courses" />
   <meta property="og:locale" content="en_US" />
   <meta property="og:title" content={seo.title} />
@@ -169,6 +173,7 @@
     </div>
     <div class="shrink-0 text-right footer-resources">
       <nav class="flex justify-end gap-5 footer-links" aria-label="Resources">
+        <a class="py-1 px-0" href="/blog">Blog</a>
         <a class="py-1 px-0" href="/stats">Stats</a>
         <a class="py-1 px-0" href="/openapi">API</a>
         <a class="py-1 px-0" href="https://github.com/twangodev/uwcourses"

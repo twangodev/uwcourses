@@ -1,0 +1,96 @@
+---
+title: "STAT 301 vs. STAT 371 at UW–Madison: which should you take?"
+description: "Compare STAT 301 and STAT 371 prerequisites, R programming, workload, and instructor reviews, with historical grades from the same five-year window."
+date: "2026-09-14"
+draft: true
+---
+
+<script>
+  import Disclosure from '$lib/components/Disclosure.svelte';
+</script>
+
+If both courses count toward your degree, start with the math background and subject you want, then look closely at the instructor. [STAT 301](/courses/STAT_301) is the department’s less mathematical introduction. [STAT 371](/courses/STAT_371) is aimed at the life sciences and includes statistical programming.[^department]
+
+The reviews make the choice less tidy. We read **108 course-matched comments** captured between September 2021 and September 2026. Students describe some supportive teachers and some frustrating classes in both courses. The historical grade averages are also close: **2.87 for [STAT 301](/courses/STAT_301), 2.91 for [STAT 371](/courses/STAT_371)**. Neither the course number nor those averages tell you which section will work better for you.[^evidence]
+
+## The practical differences
+
+| | [STAT 301](/courses/STAT_301) | [STAT 371](/courses/STAT_371) |
+| --- | --- | --- |
+| Course | Introduction to Statistical Methods | Introductory Applied Statistics for the Life Sciences |
+| Credits | 3 | 3 |
+| Starting point | QR A satisfied | Specified algebra/trigonometry coursework or qualifying math placement/coursework |
+| Emphasis | General statistical methods | Statistical applications in the life sciences |
+| R | Not specified in the checked catalog description; check the syllabus | Explicitly included in the catalog and learning outcomes |
+| Designations | Core Mathematics & Quantitative Reasoning; QR B; Natural Science breadth | Same designations |
+
+The [official Statistics course listings](https://guide.wisc.edu/courses/stat/) give the complete prerequisites and credit restrictions. In particular, [STAT 301](/courses/STAT_301) is not open to students with credit for [STAT 371](/courses/STAT_371). Don’t plan to take both without checking how prior credit affects eligibility.[^catalog]
+
+Check your [degree audit](https://registrar.wisc.edu/dars/) first. Sharing a gen-ed designation does not establish that two courses satisfy the same major requirement. If you are choosing for a professional-school prerequisite, check that program’s policy as well.
+
+## Is STAT 301 easier than STAT 371?
+
+The department describes [STAT 301](/courses/STAT_301) as the less mathematical option and [STAT 371](/courses/STAT_371) as requiring college algebra and trigonometry. That makes your preparation a useful starting point.[^department] It does not make one an automatic low-workload choice.
+
+Across Fall 2021 through Spring 2026, our dataset contains **3,898 letter grades** for [STAT 301](/courses/STAT_301) and **5,234** for [STAT 371](/courses/STAT_371). Their pooled GPAs differ by about **0.04 points**, with the slightly higher average in the higher-numbered course. That is too little information to declare a winner: these are different students, instructors, and offerings, not a controlled comparison of difficulty.[^evidence]
+
+The written comments are more useful for deciding what to investigate. Look for recurring accounts of exam preparation, lecture clarity, and access to help. Then check whether those comments concern the instructor and format you would actually take.
+
+## What students say about [STAT 301](/courses/STAT_301)
+
+Of the 40 comments in our window, **19 concern Gloria Mendoza and 18 concern Bi Cheng Wu**. The remaining three are single records for Mitchell Paukner, John Gillett, and Derek Bean. That concentration matters: this is mostly feedback about two instructors, rather than a broad sample of every [STAT 301](/courses/STAT_301) offering.[^reviews301]
+
+In Mendoza’s 2022–2024 comments, recurring concerns are fast lectures, difficulty following explanations, and exams carrying substantial weight. There are positive accounts too. Some students found the posted notes organized, the expectations clear, and office hours helpful. The disagreement is worth keeping visible rather than reducing it to one rating.
+
+Wu’s 2025–2026 comments repeatedly question how well practice materials prepared students for exams. Several describe having to relearn lecture material independently. A smaller set describes useful slides, reasonable pacing, and helpful grading adjustments. One April 2026 reviewer explicitly disputes the negative accounts. These are students’ reports; we have not independently verified their claims about exam averages or grading policies.
+
+The single Gillett comment praises his teaching and describes the class as manageable with effort. That is encouraging, but one comment cannot establish a consistent experience. The Bean record says he **substituted for one lecture**. We read it, but do not use it as an endorsement of a full course taught by him.
+
+For [STAT 301](/courses/STAT_301), the most useful syllabus check is how lectures, homework, practice questions, and exams fit together. A less mathematical course can still be difficult when that connection feels unclear.
+
+## What students say about [STAT 371](/courses/STAT_371)
+
+The 68 comments span seven instructor profiles. The strongest distinction is between accounts of teaching support and accounts of workload. Students sometimes praise the instructor while still finding the class demanding.[^reviews371]
+
+**[Chelsey Green](https://www.ratemyprofessors.com/professor/2243896):** the 12 comments from 2021–2023 repeatedly praise accessibility, flexibility, and willingness to help. Lecture pace and organization receive more mixed reactions. Several students describe an adjustment to R or needing substantial help with homework; others found the coding support sufficient. This is a reason to investigate her teaching, not evidence that [STAT 371](/courses/STAT_371) requires little work.
+
+**[John Gillett](https://www.ratemyprofessors.com/professor/1567077):** six comments from 2023–2025 generally describe an approachable instructor, useful explanations, and helpful office hours. Several also call the exams difficult or question their alignment with lecture material. An engaging class and a challenging exam can both be part of the same experience.
+
+**[Vivak Patel](https://www.ratemyprofessors.com/professor/2630806):** 17 comments from 2025–2026 lean strongly negative, with recurring concerns about abstract explanations and the connection between lectures, homework, and tests. Two May 2026 comments push back, describing clear explanations or fair tests. We would read these accounts alongside a current syllabus and ask about practice materials before choosing a section.
+
+The remaining records cover Michael Culbertson (18), Amy Beyler (12), Jana Ranson (2), and Bi Cheng Wu (1). Most of that coverage is older. Culbertson’s comments disagree about lecture clarity and assessment; Beyler’s repeatedly mention lengthy homework. The two Ranson comments criticize slide-based lectures. We retain these records in the source inventory, but would not generalize them to another instructor’s class.
+
+## How we would choose
+
+If both satisfy your requirements and you want a less mathematical introduction, start by investigating [STAT 301](/courses/STAT_301). If life-science applications and learning to work with statistical software appeal to you, investigate [STAT 371](/courses/STAT_371). The department’s [introductory-course comparison](https://stat.wisc.edu/faqs-for-statistics-majors/) is a useful companion to the reviews.[^department]
+
+Then open [Course Search & Enroll](https://public.enroll.wisc.edu/) and compare the actual sections. Before enrolling, try to answer these questions:
+
+- Who is teaching, and are the relevant comments recent enough to help?
+- How much of the grade comes from exams? Are practice exams available?
+- What R work is expected, and what help is provided for beginners?
+- Do the lecture, discussion, and office-hour times fit your week?
+
+For this pair, we would put more weight on those answers than on a 0.04-point difference in historical GPA.
+
+<Disclosure title="How we checked the evidence" lazy={false}>
+
+Official descriptions and prerequisites were checked on September 14, 2026. Reviews and grades come from a fixed dataset snapshot observed September 7, 2026, rather than live updates.
+
+We read all 40 [STAT 301](/courses/STAT_301) and 68 [STAT 371](/courses/STAT_371) comments dated September 1, 2021 through September 7, 2026. The dataset has 141 and 156 records respectively across all dates; older comments outside our window were not used in this comparison. Counts are records, not verified unique students, and similar submissions may not be independent. These self-selected instructor-profile reviews are not a representative student survey. We paraphrase teaching and workload themes without treating personal accusations as established facts.
+
+For grades, we pooled course-level totals from Fall 2021 through Spring 2026, giving each A–F letter grade equal weight. We did not add section rows to those totals. A is worth 4 points, AB 3.5, B 3, BC 2.5, C 2, D 1, and F 0. Withdrawals and other non-letter outcomes are excluded. Counts are grade records, not necessarily unique people.
+
+The [downloadable evidence snapshot](/blog/stat-301-vs-stat-371-uw-madison.json) contains term-level grade counts, review dates, profile links, record identifiers, and comment hashes. It can be regenerated with `python3 web/blog/stat-comparison.py`. The review summaries are editorial readings, not an automated sentiment score.
+
+</Disclosure>
+
+[^department]: [UW Statistics: introductory-course differences](https://stat.wisc.edu/faqs-for-statistics-majors/), checked September 14, 2026. The department distinguishes the courses by mathematical preparation and intended interests. Use the current Guide for exact enrollment restrictions.
+
+[^catalog]: [UW Guide: Statistics courses](https://guide.wisc.edu/courses/stat/), checked September 14, 2026. The table summarizes the two entries; the Guide has the complete prerequisite alternatives and credit restrictions.
+
+[^evidence]: [Article evidence snapshot](/blog/stat-301-vs-stat-371-uw-madison.json), sourced from the [pinned UW Courses dataset](https://huggingface.co/datasets/twangodev/uwcourses/tree/e243353dcb7d79b7247ced91d69443ef4c2a6349). See the expandable methodology for grade weights, dates, and review coverage.
+
+[^reviews301]: The snapshot identifies all 40 included records. Sources include [Gloria Mendoza](https://www.ratemyprofessors.com/professor/2572977), [Bi Cheng Wu](https://www.ratemyprofessors.com/professor/2772143), [Mitchell Paukner](https://www.ratemyprofessors.com/professor/2444781), [John Gillett](https://www.ratemyprofessors.com/professor/1567077), and [Derek Bean](https://www.ratemyprofessors.com/professor/2158238). Bean’s April 16, 2026 record describes a substitute lecture. Browse [STAT 301’s course page](/courses/STAT_301) for supporting course information.
+
+[^reviews371]: Sources include [Chelsey Green](https://www.ratemyprofessors.com/professor/2243896), [John Gillett](https://www.ratemyprofessors.com/professor/1567077), [Vivak Patel](https://www.ratemyprofessors.com/professor/2630806), [Michael Culbertson](https://www.ratemyprofessors.com/professor/2723055), [Amy Beyler](https://www.ratemyprofessors.com/professor/2759781), [Jana Ranson](https://www.ratemyprofessors.com/professor/2944171), and [Bi Cheng Wu](https://www.ratemyprofessors.com/professor/2772143). The snapshot identifies all 68 records. Browse [STAT 371’s course page](/courses/STAT_371) for supporting course information.

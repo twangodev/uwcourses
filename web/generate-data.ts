@@ -40,7 +40,9 @@ const observed = release.observed_at;
 await write(
   "sitemap.xml",
   sitemapXml(
-    [...pages.keys()].map((page) => `/sitemaps/${page}`),
+    [...pages.keys()]
+      .map((page) => `/sitemaps/${page}`)
+      .concat("/blog/sitemap.xml"),
     true,
     observed,
   ),
