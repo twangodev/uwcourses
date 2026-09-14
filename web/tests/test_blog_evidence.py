@@ -24,7 +24,11 @@ class BlogEvidenceTests(unittest.TestCase):
     def test_rejects_future_grade_window(self):
         with sqlite3.connect(":memory:") as db:
             with self.assertRaisesRegex(ValueError, "precede"):
-                generate({"start_term": "1222", "end_term": "1274", "target_term": "1274"}, db, {})
+                generate(
+                    {"start_term": "1222", "end_term": "1274", "target_term": "1274"},
+                    db,
+                    {},
+                )
 
 
 if __name__ == "__main__":

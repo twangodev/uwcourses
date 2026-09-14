@@ -16,15 +16,23 @@ assert shards, 'Missing sitemap shards'
 for shard in shards:
     datetime.fromisoformat(shard.find('s:lastmod', ns).text.replace('Z', '+00:00'))
     location = shard.find('s:loc', ns).text
-    assert location.startswith(origin + '/sitemaps/')
+    blog = location == origin + '/blog/sitemap.xml'
+    assert blog or location.startswith(origin + '/sitemaps/')
     tree = ElementTree.parse(root / unquote(urlparse(location).path).lstrip('/'))
     for entry in tree.findall('s:url', ns):
         url = entry.find('s:loc', ns).text
         assert url.startswith(origin + '/') and '?' not in url
         assert not url.endswith(('.md', '.json'))
-        datetime.fromisoformat(entry.find('s:lastmod', ns).text.replace('Z', '+00:00'))
-        assert 0 <= float(entry.find('s:priority', ns).text) <= 1
-        assert entry.find('s:changefreq', ns).text in ('weekly', 'monthly')
+        lastmod = entry.find('s:lastmod', ns)
+        priority = entry.find('s:priority', ns)
+        changefreq = entry.find('s:changefreq', ns)
+        # Blog entries use only applicable optional sitemap metadata.
+        if not blog or lastmod is not None:
+            datetime.fromisoformat(lastmod.text.replace('Z', '+00:00'))
+        if not blog or priority is not None:
+            assert 0 <= float(priority.text) <= 1
+        if not blog or changefreq is not None:
+            assert changefreq.text in ('weekly', 'monthly')
         urls.append(url)
 assert len(set(urls)) == len(urls), 'Duplicate sitemap URLs'
 manifest = json.loads((root / 'social/manifest.json').read_text())
