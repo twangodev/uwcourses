@@ -6,6 +6,23 @@
   import { page } from "$app/state";
   import { dev } from "$app/environment";
   import { onMount } from "svelte";
+  import type {} from "webmcp-types";
+  onMount(() => {
+    if (!document.modelContext) return;
+    let disposed = false;
+    let cleanup: (() => void) | undefined;
+    void import("$lib/webmcp")
+      .then(({ registerCourseTools }) => {
+        if (!disposed) cleanup = registerCourseTools();
+      })
+      .catch((error) =>
+        console.warn("Could not load CourseMap WebMCP tools", error),
+      );
+    return () => {
+      disposed = true;
+      cleanup?.();
+    };
+  });
   let { data, children } = $props();
   let seo = $derived(pageSeo(page.data, page.url.pathname, page.status));
   const themes = ["system", "light", "dark"] as const;
