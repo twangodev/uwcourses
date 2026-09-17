@@ -34,6 +34,23 @@ bun run preview --ip 0.0.0.0 --port 4173 --persist-to .site/browser-state
 
 ## Cloudflare setup
 
+### WebMCP
+
+The root layout registers `search_courses`, `get_course`, and `get_course_grades`
+when `document.modelContext` is available. These read-only tools reuse the public
+JSON endpoints. `webmcp-types` supplies browser typings; Zod validates tool input
+and generates its JSON Schema. No runtime polyfill or MCP server is required.
+Unsupported browsers continue to use the ordinary interface.
+
+For local testing, enable `chrome://flags/#enable-webmcp-testing`, restart Chrome,
+and open the site with the Model Context Tool Inspector extension. Search for
+`CS 300`, pass the result's `course_id` to `get_course`, and its `course_uid` to
+`get_course_grades`. Check pagination and cancellation. Production availability
+depends on browser support and, where required, WebMCP origin-trial enrollment;
+this repository does not include an origin-trial token.
+
+See the [WebMCP documentation](https://developer.chrome.com/docs/ai/webmcp).
+
 ### Endpoint inventory
 
 `bun run cloudflare:endpoints` prints the endpoint inventory from the local OpenAPI
