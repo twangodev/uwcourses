@@ -1,9 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="100%" height="100%">
-  <defs>
-    <linearGradient id="fade-l" x1="1" y1="0" x2="0" y2="0">
-      <stop offset="0" stop-color="#fff" stop-opacity="0.2"/>
-      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
-    </linearGradient>
-  </defs>
-  <rect width="100%" height="100%" fill="url(#fade-l)"/>
-</svg>
