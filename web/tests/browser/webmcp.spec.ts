@@ -23,7 +23,24 @@ test("native WebMCP searches courses and retrieves details and grades", async ({
           .sort(),
       ),
     )
-    .toEqual(["get_course", "get_course_grades", "search_courses"]);
+    .toEqual([
+      "get_course",
+      "get_course_grades",
+      "get_department",
+      "get_department_catalog",
+      "get_instructor",
+      "get_instructor_courses",
+      "get_instructor_history",
+      "get_instructor_reviews",
+      "list_departments",
+      "open_course",
+      "open_department",
+      "open_explorer",
+      "open_instructor",
+      "open_search",
+      "search_courses",
+      "search_instructors",
+    ]);
   const result = await page.evaluate(
     async (legacyArguments) => {
       const context = document.modelContext!;
@@ -53,7 +70,8 @@ test("native WebMCP searches courses and retrieves details and grades", async ({
     Number(browser.version().split(".")[0]) < 155,
   );
   expect(result.item.course_id).toBe("COMPSCI 300");
-  expect(result.course).toBeTruthy();
+  expect(result.course.course_id).toBe("COMPSCI 300");
+  expect(result.course.document).toBe("/courses/COMPSCI_300.json");
   expect(result.grades.revision).toBeTruthy();
 });
 
