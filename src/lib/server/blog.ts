@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { isBlogSlug } from "$lib/blog-format";
 
 const metadataSchema = z.object({
   title: z.string().trim().min(1),
@@ -22,8 +23,7 @@ export const allPosts = Object.entries(metadata)
       .split("/")
       .at(-1)!
       .replace(/\.svx$/, "");
-    if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug))
-      throw new Error(`Invalid blog slug: ${slug}`);
+    if (!isBlogSlug(slug)) throw new Error(`Invalid blog slug: ${slug}`);
     return { ...parsed.data, slug, path };
   })
   .sort((a, b) => b.date.localeCompare(a.date) || a.slug.localeCompare(b.slug));

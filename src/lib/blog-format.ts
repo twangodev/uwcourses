@@ -1,3 +1,7 @@
+export function isBlogSlug(value: string) {
+  return /^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(value);
+}
+
 export function postDate(date: string) {
   return new Intl.DateTimeFormat("en-US", {
     month: "long",
