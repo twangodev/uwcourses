@@ -5,10 +5,6 @@ test("comparison retains sources and evidence without JavaScript", async ({
   browser,
   request,
 }) => {
-  test.skip(
-    Boolean(process.env.TEST_PREVIEW || process.env.CI),
-    "Draft preview",
-  );
   const context = await browser.newContext({
     javaScriptEnabled: false,
     reducedMotion: "reduce",
@@ -16,10 +12,6 @@ test("comparison retains sources and evidence without JavaScript", async ({
   const page = await context.newPage();
   const response = await page.goto(path);
   expect(response?.status()).toBe(200);
-  await expect(page.locator('meta[name="robots"]')).toHaveAttribute(
-    "content",
-    "noindex,follow",
-  );
   await expect(page.locator("h1")).toContainText("STAT 301 vs. STAT 371");
   await expect(page.locator(".blog-prose")).toContainText(
     "substituted for one lecture",

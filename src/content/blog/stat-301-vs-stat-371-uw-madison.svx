@@ -1,8 +1,8 @@
 ---
 title: "STAT 301 vs. STAT 371 at UW–Madison: which should you take?"
 description: "Compare STAT 301 and STAT 371 prerequisites, R programming, workload, and instructor reviews, with historical grades from the same five-year window."
-date: "2026-09-14"
-draft: true
+date: "2026-09-18"
+draft: false
 ---
 
 <script>
