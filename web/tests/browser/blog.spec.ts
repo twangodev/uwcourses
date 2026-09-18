@@ -25,6 +25,26 @@ test("RSS is discoverable and contains published posts", async ({
   expect(items).toContain("https://uwcourses.com/blog/welcome");
 });
 
+test("Subscribe via RSS after hydration loads the feed, not a 404 page", async ({
+  page,
+}) => {
+  await page.goto("/blog");
+  await expect(page.locator("html")).toHaveAttribute("data-hydrated", "true");
+  const responsePromise = page.waitForResponse(
+    (response) =>
+      new URL(response.url()).pathname === "/blog/rss.xml" &&
+      response.request().resourceType() === "document",
+  );
+  await page.getByRole("link", { name: "Subscribe via RSS" }).click();
+  await expect(
+    page.getByRole("heading", { name: "A little off course." }),
+  ).toHaveCount(0);
+  const response = await responsePromise;
+  expect(response.status()).toBe(200);
+  expect(response.headers()["content-type"]).toContain("application/rss+xml");
+  expect(await response.text()).toContain("<rss");
+});
+
 test("KaTeX styles and fonts render wide equations without page overflow", async ({
   page,
 }) => {
