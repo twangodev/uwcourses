@@ -410,7 +410,7 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
                 "courses": sorted(items, key=lambda c: c["course_id"]),
             },
         )
-    build_discovery(db, rows(source, "rmp_reviews"))
+    build_discovery(db, rows(source, "rmp_reviews"), rows(source, "meetings_current"))
     status = {
         "revision": revision,
         "repository": REPO,
@@ -437,6 +437,12 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
         "term": next(iter(courses.values()))["semester"],
         "departments": [
             {"subject": s, "count": len(v)} for s, v in sorted(departments.items())
+        ],
+        "designations": [
+            {"family": family, "value": value, "label": label}
+            for family, value, label in db.execute(
+                "SELECT family, value, MIN(label) FROM course_designations GROUP BY family, value ORDER BY family, label"
+            )
         ],
     }
     write(output / "status.json", status)
@@ -473,6 +479,11 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
             "offerings",
             "grade_summaries",
             "reviews",
+            "section_modes",
+            "class_meetings",
+            "course_seasons",
+            "requisite_kinds",
+            "course_designations",
         ]:
             f.write(f"DROP TABLE IF EXISTS {table};\n")
         for (sql,) in db.execute(
