@@ -89,6 +89,7 @@ SCHEMAS = {
             ("llm_student_summary_json", TEXT),
             ("llm_experience_status", TEXT),
             ("llm_experience_json", TEXT),
+            ("designations", STRINGS),
         ]
     ),
     "grades_latest": pa.schema(
@@ -357,9 +358,8 @@ def write_public(database, destination, release_id, source_run, registry_path=No
         def history():
             for row in db.execute("""SELECT s.*,v.record_json FROM course_snapshots s
                     JOIN course_versions v USING(version_id) ORDER BY s.course_id,s.run_id"""):
-                catalog = catalog_record(
-                    row["course_id"], json.loads(row["record_json"])
-                )
+                record = json.loads(row["record_json"])
+                catalog = catalog_record(row["course_id"], record)
                 catalog["course_uid"] = identities[row["course_id"]]
                 versions.setdefault(catalog["catalog_version_id"], catalog)
                 value = {
@@ -368,7 +368,10 @@ def write_public(database, destination, release_id, source_run, registry_path=No
                     **catalog,
                 }
                 if row["run_id"] == source_run:
-                    current[row["course_id"]] = value
+                    current[row["course_id"]] = {
+                        **value,
+                        "designations": list(record.get("designations") or []),
+                    }
                 yield value
 
         counts["courses_history"] = write_rows(

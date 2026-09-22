@@ -16,6 +16,27 @@ def remove_extra_spaces(text: str):
     return re.sub(r"\s+", " ", text).strip()
 
 
+def designation_lines(data):
+    """Course Designation values are one catalog line per <br>."""
+    if data is None:
+        return []
+    lines, buffer = [], []
+
+    def flush():
+        line = remove_extra_spaces("".join(buffer))
+        if line:
+            lines.append(line)
+        buffer.clear()
+
+    for node in data.children:
+        if getattr(node, "name", None) == "br":
+            flush()
+        else:
+            buffer.append(node.get_text() if hasattr(node, "get_text") else str(node))
+    flush()
+    return lines
+
+
 def cleanup_course_reference_str(course_code: str):
     """Remove special HTML characters and clean up the course code."""
     if not course_code:
@@ -143,6 +164,7 @@ class Course(JsonSerializable):
         keywords=None,
         satisfies: set[Reference] = None,
         has_meetings: bool = False,
+        designations: list[str] | None = None,
     ):
         if similar_courses is None:
             similar_courses = set()
@@ -164,6 +186,7 @@ class Course(JsonSerializable):
         self.keywords = keywords
         self.satisfies = satisfies
         self.has_meetings = has_meetings
+        self.designations = list(designations or [])
 
     @classmethod
     def from_json(cls, json_data) -> "Course":
@@ -203,6 +226,7 @@ class Course(JsonSerializable):
                 for ref in json_data.get("satisfies", [])
             },
             has_meetings=json_data.get("has_meetings", False),
+            designations=json_data.get("designations") or [],
         )
 
     def to_dict(self):
@@ -228,6 +252,7 @@ class Course(JsonSerializable):
             "keywords": self.keywords,
             "satisfies": [ref.to_dict() for ref in self.satisfies],
             "has_meetings": self.has_meetings,
+            "designations": self.designations,
         }
 
     @classmethod
@@ -257,25 +282,36 @@ class Course(JsonSerializable):
         )
 
         cb_extras = block.find("div", class_="cb-extras")
-        basic_course = Course(
-            course_reference,
-            course_title,
-            description,
-            Course.Prerequisites("", [], set(), None),
-            None,
-            None,
-            {},
-        )
-        if not cb_extras:
-            return basic_course
-
-        requisites_header = cb_extras.find(
-            "span", class_="cbextra-label", string=re.compile("Requisites:")
-        )
-        if not requisites_header:
-            return basic_course
-
-        requisites_data = requisites_header.find_next("span", class_="cbextra-data")
+        designations = []
+        requisites_data = None
+        if cb_extras:
+            designation_header = cb_extras.find(
+                "span",
+                class_="cbextra-label",
+                string=re.compile(r"Course Designation:"),
+            )
+            if designation_header:
+                designations = designation_lines(
+                    designation_header.find_next("span", class_="cbextra-data")
+                )
+            requisites_header = cb_extras.find(
+                "span", class_="cbextra-label", string=re.compile("Requisites:")
+            )
+            if requisites_header:
+                requisites_data = requisites_header.find_next(
+                    "span", class_="cbextra-data"
+                )
+        if requisites_data is None:
+            return Course(
+                course_reference,
+                course_title,
+                description,
+                Course.Prerequisites("", [], set(), None),
+                None,
+                None,
+                {},
+                designations=designations,
+            )
         requisites_text = requisites_data.get_text(strip=True)
 
         requisites_courses = set()
@@ -317,6 +353,7 @@ class Course(JsonSerializable):
             None,
             None,
             {},
+            designations=designations,
         )
 
     def determine_parent(self):
