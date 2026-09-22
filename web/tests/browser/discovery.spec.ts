@@ -132,6 +132,66 @@ test("department names appear in search, headings and SEO metadata", async ({ pa
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });
 
+test("course filters combine on search, departments, and collections", async ({ page }) => {
+  test.setTimeout(60000);
+  await page.goto("/search");
+  await expect(page.locator("html")).toHaveAttribute("data-hydrated", "true");
+  const finder = page.getByRole("region", { name: "Find courses" });
+  const graduate = finder.getByRole("button", { name: "Graduate", exact: true });
+  if (!(await graduate.isVisible())) await page.getByText("Filters", { exact: true }).click();
+  await graduate.click();
+  await expect(page).toHaveURL(/level=700(%2C|,)800(%2C|,)900/);
+  await finder.getByRole("checkbox", { name: "In person", exact: true }).check();
+  await finder.getByLabel("Historical GPA at least").fill("3");
+  await finder.getByLabel("Historical GPA at least").blur();
+  await expect(page).toHaveURL(/gpa_min=3/);
+  await expect(page).toHaveURL(/mode=in_person/);
+  await expect(finder.getByRole("list", { name: "Active filters" })).toBeVisible();
+  const card = page.locator(".discovery-card a").first();
+  await expect(card).toBeVisible();
+  await card.click();
+  await expect(page).toHaveURL(/\/courses\//);
+  await page.goBack();
+  await finder.getByRole("button", { name: /Remove Course number/ }).click();
+  await expect(page).not.toHaveURL(/level=/);
+
+  await page.goto("/departments/COMPSCI");
+  const department = page.getByRole("region", { name: "Find courses" });
+  const monday = department.getByRole("button", { name: "Mon", exact: true });
+  if (!(await monday.isVisible())) await page.getByText("Filters", { exact: true }).click();
+  await monday.click();
+  await department.getByRole("button", { name: "Requisites", exact: true }).click();
+  await page.getByRole("option", { name: "No requisites listed", exact: true }).click();
+  await expect(page).toHaveURL(/days=mon/);
+  await expect(page).toHaveURL(/requisites=none/);
+  await page.getByRole("button", { name: "Term", exact: true }).click();
+  await page.getByRole("option", { name: "Spring 2026", exact: true }).click();
+  await expect(page).toHaveURL(/term=1264/);
+
+  await page.goto("/courses/easiest");
+  const ranked = page.getByRole("region", { name: "Find courses" });
+  const credits = ranked.getByLabel("At least this many credits");
+  if (!(await credits.isVisible())) await page.getByText("Filters", { exact: true }).click();
+  await credits.fill("3");
+  await ranked.getByLabel("At least this many credits").blur();
+  await expect(page).toHaveURL(/credits_min=3/);
+  await expect(page.locator(".discovery-card").first()).toContainText("#1");
+  await expect(page.getByRole("button", { name: "Sort courses", exact: true })).toHaveCount(0);
+
+  for (const path of ["/search?level=700,800,900&mode=in_person", "/departments/COMPSCI?days=mon", "/courses/easiest?credits_min=3"]) {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto(path);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(390);
+  }
+  const designation = page.getByRole("group", { name: "Catalog designation" });
+  if (await designation.getByRole("checkbox").count()) {
+    await designation.getByRole("checkbox").first().check();
+    await expect(page).toHaveURL(/designation=/);
+  } else {
+    await expect(designation).toContainText("not in this snapshot");
+  }
+});
+
 test('cross-listed course headings stay within a narrow viewport', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto('/search?availability=all');

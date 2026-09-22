@@ -7,6 +7,8 @@
   import SearchInput from "./SearchInput.svelte";
   import Select from "./Select.svelte";
   import CourseList from "./CourseList.svelte";
+  import FacetControls from "./FacetControls.svelte";
+  import { panelFacets } from "$lib/course-facets";
   import { termName } from "$lib/format";
   let {
     results,
@@ -23,13 +25,56 @@
     showTerm?: boolean;
     ranked?: boolean;
   } = $props();
+  let draft: URLSearchParams | null = null;
+  let navigation = Promise.resolve();
   function change(key: string, value: string) {
-    const query = new URLSearchParams(location.search);
-    query.set(key, value);
+    const query = new URLSearchParams(draft ?? location.search);
+    if (value) query.set(key, value);
+    else query.delete(key);
     query.delete("page");
-    goto(`${path}?${query}`, { keepFocus: true, noScroll: true });
+    draft = query;
+    const href = `${path}?${query}`;
+    navigation = navigation.then(async () => {
+      await goto(href, { keepFocus: true, noScroll: true });
+      if (draft === query) draft = null;
+    });
   }
   let urlParams = $derived(results.filters || {});
+  const panelParams = panelFacets().flatMap((facet) =>
+    facet.params.map((param) => param.name),
+  );
+  let advanced = $derived(panelParams.some((name) => urlParams[name]));
+  let disclosure = $state<HTMLDetailsElement>();
+  let chips = $derived(
+    panelFacets().flatMap((facet) =>
+      facet.params
+        .filter((param) => param.name !== "days_match" && urlParams[param.name])
+        .map((param) => ({
+          name: param.name,
+          label: chipLabel(facet.label, param.name, urlParams[param.name]),
+        })),
+    ),
+  );
+  $effect(() => {
+    if (advanced && disclosure) disclosure.open = true;
+  });
+  function chipLabel(facet: string, name: string, value: string) {
+    if (name === "instructor")
+      return results.instructor_name || "Unknown instructor";
+    if (name === "designation") {
+      const labels = new Map(
+        (status.designations || []).map((row) => [
+          `${row.family}:${row.value}`,
+          row.label,
+        ]),
+      );
+      return value
+        .split(",")
+        .map((token) => labels.get(token) || token)
+        .join(", ");
+    }
+    return `${facet}: ${value}`;
+  }
   function pageLink(page: number) {
     const query = new URLSearchParams({ ...urlParams, page: String(page) });
     return `${path}?${query}`;
@@ -56,7 +101,7 @@
         availability: results.availability,
       }}
       placeholder="A course, professor, or something you want to learn…"
-    />{#each Object.entries( { ...urlParams, term: results.term, availability: results.availability } ).filter(([key]) => !["q", "page"].includes(key)) as [key, value]}<input
+    />{#each Object.entries( { ...urlParams, term: results.term, availability: results.availability } ).filter(([key]) => !["q", "page"].includes(key)) as [key, value] (key)}<input
         type="hidden"
         name={key}
         {value}
@@ -98,29 +143,6 @@
       ]}
       onChange={(v) => change("availability", v)}
     />
-    <Select
-      label="Course level"
-      value={urlParams.level || ""}
-      options={[
-        { value: "", label: "All levels" },
-        ...Array.from({ length: 10 }, (_, i) => ({
-          value: String(i * 100),
-          label: `${i * 100}–${i * 100 + 99} level`,
-        })),
-      ]}
-      onChange={(v) => change("level", v)}
-    />
-    <Select
-      label="Credits"
-      value={urlParams.credits_max || ""}
-      options={[
-        { value: "", label: "Any credits" },
-        { value: "1", label: "Up to 1 credit" },
-        { value: "3", label: "Up to 3 credits" },
-        { value: "4", label: "Up to 4 credits" },
-      ]}
-      onChange={(v) => change("credits_max", v)}
-    />
     {#if !ranked}<Select
         label="Sort courses"
         value={urlParams.sort || ""}
@@ -131,8 +153,42 @@
         onChange={(v) => change("sort", v)}
       />{/if}
   </div>
+  {#if chips.length}
+    <ul class="m-0 flex list-none flex-wrap gap-2 p-0" aria-label="Active filters">
+      {#each chips as chip (chip.name)}
+        <li>
+          <button
+            class="inline-flex max-w-full items-center gap-2 border border-border bg-surface px-2 py-1 text-left text-[12px]"
+            type="button"
+            onclick={() => change(chip.name, "")}
+          >
+            <span class="truncate">{chip.label}</span>
+            <span aria-hidden="true">×</span>
+            <span class="sr-only">Remove {chip.label}</span>
+          </button>
+        </li>
+      {/each}
+    </ul>
+  {/if}
+  <details class="mt-4" bind:this={disclosure}>
+    <summary class="cursor-pointer text-[13px]">Filters</summary>
+    <div class="mt-4">
+      <FacetControls
+        filters={urlParams}
+        designations={status.designations || []}
+        revision={status.revision}
+        instructorName={results.instructor_name}
+        onChange={change}
+      />
+    </div>
+  </details>
   <p class="text-[12px] text-muted max-w-[75ch] mt-4 mb-2 coverage mx-0">
-    Historical grades cover up to five years through the selected term. {ranked
+    Historical grades cover up to five years through the selected term. Courses
+    with no letter grades in that window do not match a GPA floor or ceiling.
+    Days and time use class meetings in the selected term, Central time, and
+    ignore exams. A catalog designation is the Guide label in this snapshot,
+    not a degree-audit decision.
+    {ranked
       ? "Only courses with at least 100 letter grades are ranked."
       : "Grade sorting prioritizes courses with at least 100 letter grades."}
   </p>
