@@ -29,6 +29,11 @@ export const datasetSchema = named(
     departments: z.array(
       z.object({ subject: z.string(), count: z.number().int() }),
     ),
+    designations: z
+      .array(
+        z.object({ family: z.string(), value: z.string(), label: z.string() }),
+      )
+      .optional(),
   }),
 );
 export const citationSchema = named(
@@ -187,6 +192,7 @@ export const searchSchema = named(
     q: z.string(),
     term: z.string(),
     availability: z.string(),
+    instructor_name: z.string().nullable().optional(),
     filters: z.record(z.string(), z.string()),
   }),
 );

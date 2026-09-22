@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { courseFacets } from "$lib/course-facets";
 import { registry, type DocumentKind } from "./schemas";
 
 const query = (
@@ -25,16 +26,11 @@ const searchParameters = [
     "Whether courses must be offered in the selected term.",
     { type: "string", enum: ["offered", "all"] },
   ),
-  ...[
-    "subject",
-    "instructor",
-    "level",
-    "credits_min",
-    "credits_max",
-    "gpa_min",
-    "sort",
-    "ranking",
-  ].map((name) => query(name, `Course ${name.replace("_", " ")} filter.`)),
+  ...courseFacets.flatMap((facet) =>
+    facet.params.map((param) => query(param.name, param.description)),
+  ),
+  query("sort", "Course sort. gpa orders by historical GPA."),
+  query("ranking", "Course collection ranking: easiest or hardest."),
 ];
 const routes: [string, DocumentKind, string[]][] = [
   ["/index", "Home", []],

@@ -37,6 +37,27 @@ describe("WebMCP course tools", () => {
     );
   });
 
+  it("forwards schedule, level, and grade filters", async () => {
+    const fetch = vi.fn().mockResolvedValue(Response.json({ items: [] }));
+    vi.stubGlobal("fetch", fetch);
+    await execute("search_courses", {
+      mode: ["in_person"],
+      time: ["morning"],
+      days: ["mon", "wed", "fri"],
+      level: [700, 800, 900],
+      gpa_min: 3,
+    });
+    const url = String(fetch.mock.calls[0][0]);
+    expect(url).toContain("mode=in_person");
+    expect(url).toContain("time=morning");
+    expect(url).toContain("days=mon%2Cwed%2Cfri");
+    expect(url).toContain("level=700%2C800%2C900");
+    expect(url).toContain("gpa_min=3");
+    await expect(execute("search_courses", { term: "fall" })).rejects.toThrow(
+      /Invalid tool input/,
+    );
+  });
+
   it.each(["COMPSCI 300", "COMPSCI_300"])(
     "resolves course code %s to its JSON document",
     async (course) => {

@@ -1,5 +1,15 @@
 import type {} from "webmcp-types";
 import { z } from "zod";
+import {
+  catalogSeasons,
+  dayMatches,
+  facetParam,
+  instructionModes,
+  requisiteFilters,
+  timeBuckets,
+  TOKEN_LIMIT,
+  weekdays,
+} from "$lib/course-facets";
 import { courseUrl } from "$lib/format";
 import { representationUrl } from "$lib/documents";
 
@@ -35,11 +45,13 @@ type Navigate = (href: string) => Promise<void> | void;
 
 function query(
   path: string,
-  values: Record<string, string | number | undefined>,
+  values: Record<string, string | number | readonly (string | number)[] | undefined>,
 ) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
-    if (value !== undefined) params.set(key, String(value));
+    if (value === undefined) continue;
+    const text = Array.isArray(value) ? value.join(",") : String(value);
+    if (text) params.set(key, text);
   }
   return path + (params.size ? `?${params}` : "");
 }
@@ -250,18 +262,34 @@ export function createWebmcpTools({
           .optional()
           .describe("Course code or search text, e.g. CS 300 or programming."),
         subject: z
-          .string()
-          .min(1)
-          .max(100)
+          .union([subject, z.array(subject).min(1).max(TOKEN_LIMIT)])
           .optional()
-          .describe("Subject code, e.g. COMPSCI."),
+          .describe(facetParam("subject").description),
         term,
         availability: z.enum(["offered", "all"]).optional(),
         page,
-        level: z.number().int().min(0).max(900).multipleOf(100).optional(),
-        credits_min: z.number().min(0).max(99).optional(),
-        credits_max: z.number().min(0).max(99).optional(),
-        gpa_min: z.number().min(0).max(4).optional(),
+        level: z
+          .union([
+            z.number().int().min(0).max(900).multipleOf(100),
+            z
+              .array(z.number().int().min(0).max(900).multipleOf(100))
+              .min(1)
+              .max(TOKEN_LIMIT),
+          ])
+          .optional()
+          .describe(facetParam("level").description),
+        credits_min: z.number().min(0).max(20).optional().describe(facetParam("credits_min").description),
+        credits_max: z.number().min(0).max(20).optional().describe(facetParam("credits_max").description),
+        gpa_min: z.number().min(0).max(4).optional().describe(facetParam("gpa_min").description),
+        gpa_max: z.number().min(0).max(4).optional().describe(facetParam("gpa_max").description),
+        requisites: z.enum(requisiteFilters).optional().describe(facetParam("requisites").description),
+        season: z.array(z.enum(catalogSeasons)).max(TOKEN_LIMIT).optional().describe(facetParam("season").description),
+        designation: z.array(z.string().regex(/^[a-z0-9-]+:[a-z0-9-]+$/)).max(TOKEN_LIMIT).optional().describe(facetParam("designation").description),
+        instructor: z.string().min(1).max(200).optional().describe(facetParam("instructor").description),
+        days: z.array(z.enum(weekdays)).max(7).optional().describe(facetParam("days").description),
+        days_match: z.enum(dayMatches).optional().describe(facetParam("days_match").description),
+        time: z.array(z.enum(timeBuckets)).max(TOKEN_LIMIT).optional().describe(facetParam("time").description),
+        mode: z.array(z.enum(instructionModes)).max(TOKEN_LIMIT).optional().describe(facetParam("mode").description),
         sort: z
           .enum(["gpa"])
           .optional()

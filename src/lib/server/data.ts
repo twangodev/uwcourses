@@ -12,6 +12,7 @@ import { isCourseCollection } from "$lib/course-collections";
 import { building, dev } from "$lib/server/runtime";
 import { error } from "@sveltejs/kit";
 import { coursePreviews } from "./discovery";
+import { compileCourseQuery, parseCourseFilters } from "./course-query";
 import { normalize } from "$lib/format";
 import type { Status } from "$lib/types";
 /** Existing FTS and aggregation queries retain bound parameters. */
@@ -97,9 +98,18 @@ export async function search(
     values: unknown[] = [];
   let from = kind === "course" ? "courses c" : "instructors c";
   let where = "1=1";
+  const courseQuery =
+    kind === "course"
+      ? parseCourseFilters(
+          url.searchParams,
+          term,
+          availability as "offered" | "all",
+        )
+      : undefined;
+  const compiled = courseQuery ? compileCourseQuery(courseQuery) : undefined;
   const needsHistory =
     kind === "course" &&
-    (url.searchParams.has("gpa_min") ||
+    (compiled!.history ||
       url.searchParams.has("ranking") ||
       url.searchParams.get("sort") === "gpa");
   const totals = "SUM(a+ab+b+bc+c+d+f)";
@@ -113,50 +123,9 @@ export async function search(
     values.push(expression, kind);
     if (kind === "course") values.push(normalize(q));
   }
-  if (kind === "course") {
-    for (const [param, clause] of [
-      [
-        "subject",
-        "EXISTS(SELECT 1 FROM subjects s WHERE s.uid=c.uid AND s.subject=?)",
-      ],
-      [
-        "instructor",
-        "EXISTS(SELECT 1 FROM teaching t WHERE t.course_uid=c.uid AND t.instructor_uid=?)",
-      ],
-    ]) {
-      const v = url.searchParams.get(param);
-      if (v) {
-        where += " AND " + clause;
-        values.push(v);
-      }
-    }
-    if (availability === "offered") {
-      where +=
-        " AND EXISTS(SELECT 1 FROM offerings o WHERE o.uid=c.uid AND o.term=?)";
-      values.push(term);
-    }
-    const level = url.searchParams.get("level");
-    if (level) {
-      const n = Number(level);
-      if (!Number.isInteger(n) || n < 0 || n > 900 || n % 100)
-        error(400, "Invalid course level");
-      where +=
-        " AND EXISTS(SELECT 1 FROM course_numbers n WHERE n.uid=c.uid AND n.number BETWEEN ? AND ?)";
-      values.push(n, n + 99);
-    }
-    for (const [param, col, op] of [
-      ["credits_min", "credits_max", ">="],
-      ["credits_max", "credits_min", "<="],
-      ["gpa_min", "gpa", ">="],
-    ]) {
-      const v = url.searchParams.get(param);
-      if (v) {
-        const n = Number(v);
-        if (!Number.isFinite(n)) error(400, "Invalid numeric filter");
-        where += ` AND ${param === "gpa_min" ? "h.history_gpa" : `c.${col}`}${op}?`;
-        values.push(n);
-      }
-    }
+  if (compiled) {
+    where += compiled.where;
+    values.push(...compiled.values);
   }
   const ranking = url.searchParams.get("ranking");
   if (ranking && (kind !== "course" || !isCourseCollection(ranking)))
@@ -202,8 +171,10 @@ export async function search(
               items,
               term,
               platform,
-              undefined,
-              url.searchParams.get("subject") || "school",
+              courseQuery?.instructor,
+              courseQuery?.subjects.length === 1
+                ? courseQuery.subjects[0]
+                : "school",
             )
         : await withInstructorUrls(items, platform),
     total: count.total,
@@ -212,6 +183,15 @@ export async function search(
     q,
     term,
     availability,
+    instructor_name: courseQuery?.instructor
+      ? ((
+          await query(
+            platform,
+            "SELECT name FROM instructors WHERE uid=?",
+            [courseQuery.instructor],
+          )
+        )[0]?.name ?? null)
+      : null,
     filters: Object.fromEntries(url.searchParams),
   };
 }

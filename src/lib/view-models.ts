@@ -51,5 +51,6 @@ export interface CourseResults {
   term: string;
   q: string;
   availability: string;
+  instructor_name?: string | null;
   filters?: Record<string, string>;
 }

@@ -36,8 +36,64 @@ describe("course discovery", () => {
       search(new URL("http://localhost/search?gpa_min=nope")),
     ).rejects.toMatchObject({ status: 400 });
     await expect(
+      search(new URL("http://localhost/search?days=fundy")),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      search(new URL("http://localhost/search?time=noon")),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      search(new URL("http://localhost/search?mode=hybrid")),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
+      search(new URL("http://localhost/search?designation=not%20a%20token")),
+    ).rejects.toMatchObject({ status: 400 });
+    await expect(
       search(new URL("http://localhost/search?page=-1")),
     ).rejects.toMatchObject({ status: 400 });
+  });
+  it("combines subjects with OR and names a selected instructor", async () => {
+    const either = await search(
+      new URL("http://localhost/search?subject=COMPSCI,MATH&availability=all"),
+    );
+    expect(either.items.length).toBeGreaterThan(0);
+    const found = await search(
+      new URL("http://localhost/search?q=COMPSCI%20300&availability=all"),
+    );
+    expect(found.items[0].course_id).toBe("COMPSCI 300");
+    const teacher = found.items[0].discovery?.instructors[0];
+    expect(teacher?.uid).toBeTruthy();
+    const taught = await search(
+      new URL(
+        `http://localhost/search?instructor=${encodeURIComponent(teacher!.uid)}&availability=all`,
+      ),
+    );
+    expect(taught.instructor_name).toBeTruthy();
+    expect(taught.items.some((course) => course.course_id === "COMPSCI 300")).toBe(
+      true,
+    );
+    const missing = await search(
+      new URL("http://localhost/search?instructor=instructor_missing&availability=all"),
+    );
+    expect(missing.total).toBe(0);
+    expect(missing.instructor_name).toBeNull();
+  });
+  it("keeps unparsed requisites out of the no-requisite list", async () => {
+    const open = await search(
+      new URL(
+        "http://localhost/search?q=COMPSCI%20300&requisites=none&availability=all",
+      ),
+    );
+    expect(open.items.some((course) => course.course_id === "COMPSCI 300")).toBe(
+      false,
+    );
+    const review = await search(
+      new URL(
+        "http://localhost/search?q=COMPSCI%20200&requisites=none&availability=all",
+      ),
+    );
+    expect(review.items.some((course) => course.course_id === "COMPSCI 200")).toBe(
+      false,
+    );
   });
   it("rejects mixed revisions", async () => {
     await expect(

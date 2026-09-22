@@ -40,6 +40,7 @@ export interface Status {
   courses: number;
   current_instructors: number;
   departments: { subject: string; count: number }[];
+  designations?: { family: string; value: string; label: string }[];
 }
 export interface Citation {
   type: string;
