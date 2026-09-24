@@ -3,6 +3,9 @@
   "name": "uwcourses",
   "workers_dev": false,
   "preview_urls": false,
+  "limits": {
+    "cpu_ms": 2000
+  },
   "placement": {
     "mode": "smart"
   },
