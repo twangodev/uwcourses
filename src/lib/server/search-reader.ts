@@ -19,28 +19,35 @@ export type QueryMeasurement = {
 };
 type Statement = { sql: string; values?: readonly unknown[]; family?: string };
 
-function parameters(statement: Statement) {
+function prepareRead(statement: Statement) {
   const values = (statement.values ?? []).map((value) => {
     if (value === null || typeof value === "string" || (typeof value === "number" && Number.isFinite(value))) return value;
     throw new Error("Invalid search SQL parameter");
   });
-  if (statement.sql.split("?").length !== values.length + 1)
-    throw new Error("SQL parameter count mismatch");
-  return values;
+  const parts = statement.sql.split("?");
+  if (parts.length !== values.length + 1) throw new Error("SQL parameter count mismatch");
+  if (values.length <= 100) return { sql: statement.sql, values };
+  // A constant JSON row keeps large, valid filter combinations within D1's bind limit.
+  const sql = parts.map((part, index) => part + (index < values.length ? `(SELECT json_extract(payload,'$[${index}]') FROM search_bindings)` : "")).join("");
+  const binding = "search_bindings AS MATERIALIZED (SELECT ? payload)";
+  return {
+    sql: /^WITH\s/i.test(sql) ? sql.replace(/^WITH\s/i, `WITH ${binding}, `) : `WITH ${binding} ${sql}`,
+    values: [JSON.stringify(values)],
+  };
 }
 
 export async function searchReadBatch(platform: App.Platform | undefined, statements: Statement[]): Promise<unknown[][]> {
   if (!statements.length) return [];
-  const values = statements.map(parameters);
+  const preparedReads = statements.map(prepareRead);
+  if (preparedReads.some((read) => new TextEncoder().encode(read.sql).length > 100000)) throw new Error("Search statement exceeds D1 SQL limit");
   const started = performance.now();
   if (building || dev) {
     const local = await localDatabase();
-    return statements.map((statement, index) => local.prepare(statement.sql).all(...values[index]));
+    return statements.map((statement, index) => local.prepare(preparedReads[index].sql).all(...preparedReads[index].values));
   }
   const client = platform?.readContext?.client ?? platform?.env.DB;
   if (!client) error(503, "Dataset database unavailable");
-  if (statements.some((_, i) => values[i].length > 100)) throw new Error("Search statement exceeds D1 parameter limit");
-  const prepared = statements.map((statement, index) => client.prepare(statement.sql).bind(...values[index]));
+  const prepared = preparedReads.map((read) => client.prepare(read.sql).bind(...read.values));
   const results = prepared.length === 1 ? [await prepared[0].all<unknown>()] : await client.batch<unknown>(prepared);
   if (results.length !== statements.length || results.some((result) => !result.success)) throw new Error("Search batch failed");
   const report = platform?.readContext?.report;

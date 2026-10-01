@@ -30,8 +30,14 @@ describe("validated search reads", () => {
     const { platform, client } = fixture();
     await expect(searchRead(platform, row, "SELECT ?", [undefined])).rejects.toThrow("parameter");
     await expect(searchRead(platform, row, "SELECT ?", [])).rejects.toThrow("count mismatch");
-    await expect(searchRead(platform, row, `SELECT ${Array(101).fill("?").join(",")}`, Array(101).fill(1))).rejects.toThrow("parameter limit");
     expect(client.prepare).not.toHaveBeenCalled();
+  });
+  it("packs large valid filter combinations into a constant JSON binding", async () => {
+    const { platform, client, statement } = fixture();
+    await searchRead(platform, row, `SELECT ${Array(101).fill("?").join(",")}`, Array(101).fill(1));
+    expect(client.prepare.mock.calls[0][0]).toContain("search_bindings AS MATERIALIZED");
+    expect(statement.bind.mock.calls[0]).toHaveLength(1);
+    expect(JSON.parse(statement.bind.mock.calls[0][0])).toHaveLength(101);
   });
   it("rejects every queued read when the batch fails", async () => {
     const { platform, client } = fixture();

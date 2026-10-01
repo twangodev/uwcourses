@@ -27,7 +27,7 @@ try {
     const input = new URLSearchParams(params);
     const scope = courseSearchScope(
       parseCourseFilters(input, status.term, input.get("availability") === "all" ? "all" : "offered"),
-      "", null, false, { ratingPrior: prior, projection: { available: status.search_projection != null, window: status.search_projection != null } },
+      "", null, false, { ratingPrior: prior, projection: { available: !process.argv.includes("--legacy") && status.search_projection != null, window: !process.argv.includes("--legacy") && status.search_projection != null } },
     );
     const sql = `${scope.prefix}SELECT COUNT(DISTINCT c.uid) total FROM ${scope.from} WHERE ${scope.where}`;
     const statement = db.prepare(sql);
