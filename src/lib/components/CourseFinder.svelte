@@ -2,14 +2,17 @@
   import type { CourseResults } from "$lib/view-models";
   import type { Status } from "$lib/types";
   import { departmentLabel } from "$lib/departments";
-  import { Search } from "@lucide/svelte";
+  import { Search, X } from "@lucide/svelte";
   import { goto } from "$app/navigation";
+  import { activeCourseFilters } from "$lib/course-filter-ui";
   import SearchInput from "./SearchInput.svelte";
   import Select from "./Select.svelte";
+  import FacetSelect from "./FacetSelect.svelte";
   import CourseList from "./CourseList.svelte";
-  import FacetControls from "./FacetControls.svelte";
-  import { panelFacets } from "$lib/course-facets";
+  import CourseFilters from "./CourseFilters.svelte";
   import { termName } from "$lib/format";
+  import { createFacetDistributions } from "$lib/facet-distributions.svelte";
+
   let {
     results,
     status,
@@ -17,6 +20,7 @@
     path = "/search",
     showTerm = true,
     ranked = false,
+    showHeading = true,
   }: {
     results: CourseResults;
     status: Status;
@@ -24,191 +28,231 @@
     path?: string;
     showTerm?: boolean;
     ranked?: boolean;
+    showHeading?: boolean;
   } = $props();
-  let draft: URLSearchParams | null = null;
+  let draft = $state<URLSearchParams | null>(null);
   let navigation = Promise.resolve();
-  function change(key: string, value: string) {
+  let navigationError = $state("");
+  let filters = $derived(
+    draft ? Object.fromEntries(draft) : results.filters || {},
+  );
+  let active = $derived(
+    activeCourseFilters(
+      filters,
+      status.designations ?? [],
+      results.instructor_name,
+    ).filter((filter) => !subject || filter.id !== "subject"),
+  );
+  let searchFilters = $derived({
+    ...filters,
+    subject: subject || filters.subject || "",
+    term: filters.term || results.term,
+    availability: filters.availability || results.availability,
+  });
+
+  const facets = createFacetDistributions(
+    () => ({ ...searchFilters, q: filters.q ?? results.q }),
+    () => status.revision,
+  );
+
+  function change(updates: Record<string, string>) {
     const query = new URLSearchParams(draft ?? location.search);
-    if (value) query.set(key, value);
-    else query.delete(key);
+    for (const [key, value] of Object.entries(updates)) {
+      if (value) query.set(key, value);
+      else query.delete(key);
+    }
     query.delete("page");
     draft = query;
+    navigationError = "";
     const href = `${path}?${query}`;
     navigation = navigation.then(async () => {
-      await goto(href, { keepFocus: true, noScroll: true });
-      if (draft === query) draft = null;
+      try {
+        await goto(href, { keepFocus: true, noScroll: true });
+      } catch {
+        navigationError = "Couldn’t update the results. Please try again.";
+      } finally {
+        if (draft === query) draft = null;
+      }
     });
   }
-  let urlParams = $derived(results.filters || {});
-  const panelParams = panelFacets().flatMap((facet) =>
-    facet.params.map((param) => param.name),
-  );
-  let advanced = $derived(panelParams.some((name) => urlParams[name]));
-  let disclosure = $state<HTMLDetailsElement>();
-  let chips = $derived(
-    panelFacets().flatMap((facet) =>
-      facet.params
-        .filter((param) => param.name !== "days_match" && urlParams[param.name])
-        .map((param) => ({
-          name: param.name,
-          label: chipLabel(facet.label, param.name, urlParams[param.name]),
-        })),
-    ),
-  );
-  $effect(() => {
-    if (advanced && disclosure) disclosure.open = true;
-  });
-  function chipLabel(facet: string, name: string, value: string) {
-    if (name === "instructor")
-      return results.instructor_name || "Unknown instructor";
-    if (name === "designation") {
-      const labels = new Map(
-        (status.designations || []).map((row) => [
-          `${row.family}:${row.value}`,
-          row.label,
-        ]),
-      );
-      return value
-        .split(",")
-        .map((token) => labels.get(token) || token)
-        .join(", ");
-    }
-    return `${facet}: ${value}`;
+  function clear(keys: string[]) {
+    change(Object.fromEntries(keys.map((key) => [key, ""])));
   }
   function pageLink(page: number) {
-    const query = new URLSearchParams({ ...urlParams, page: String(page) });
-    return `${path}?${query}`;
+    return `${path}?${new URLSearchParams({ ...searchFilters, page: String(page) })}`;
   }
 </script>
 
 <section aria-label="Find courses" class="finder">
-  <div class="flex items-baseline justify-between gap-5 mb-6 finder-heading">
-    <h2 class="text-[27px] font-medium m-0">
+  {#if showHeading}<h2 class="finder-heading">
       {ranked ? "Find your fit" : "Find your next class"}
-    </h2>
-    <span class="text-[13px] muted"
-      ><strong>{results.total}</strong> courses</span
-    >
-  </div>
-  <form action={path} class="flex items-center gap-3 finder-search">
+    </h2>{/if}
+  <form action={path} class="finder-search">
     <SearchInput
       value={results.q}
       revision={status.revision}
-      filters={{
-        ...urlParams,
-        subject: subject || urlParams.subject || "",
-        term: results.term,
-        availability: results.availability,
-      }}
+      filters={searchFilters}
       placeholder="A course, professor, or something you want to learn…"
-    />{#each Object.entries( { ...urlParams, term: results.term, availability: results.availability } ).filter(([key]) => !["q", "page"].includes(key)) as [key, value] (key)}<input
-        type="hidden"
-        name={key}
-        {value}
-      />{/each}<button
-      class="grid place-items-center min-h-10.5 border-0 bg-transparent shrink-0 py-2 px-2.5"
-      aria-label="Search"><Search size={19} strokeWidth={1.5} /></button
+    />
+    {#each Object.entries(searchFilters).filter(([key]) => !["q", "page"].includes(key)) as [key, value] (key)}
+      <input type="hidden" name={key} {value} />
+    {/each}
+    <button class="search-button" aria-label="Search"
+      ><Search size={19} strokeWidth={1.5} /></button
     >
   </form>
-  <div class="flex flex-wrap gap-2.5 finder-filters my-5.5 mx-0">
-    {#if !subject}<Select
-        label="Department"
-        value={urlParams.subject || ""}
-        options={[
-          { value: "", label: "All departments" },
-          ...status.departments.map((d) => ({
-            value: d.subject,
-            label: departmentLabel(d.subject),
-          })),
-        ]}
-        onChange={(v) => change("subject", v)}
-      />{/if}
-    {#if showTerm}
-      <Select
-        label="Term"
-        value={results.term}
-        options={status.terms.map((term: string) => ({
-          value: term,
-          label: termName(term),
-        }))}
-        onChange={(v) => change("term", v)}
-      />
-    {/if}
-    <Select
-      label="Course availability"
-      value={results.availability}
-      options={[
-        { value: "offered", label: "Recorded offerings" },
-        { value: "all", label: "Full catalog" },
-      ]}
-      onChange={(v) => change("availability", v)}
-    />
-    {#if !ranked}<Select
-        label="Sort courses"
-        value={urlParams.sort || ""}
-        options={[
-          { value: "", label: "Course match" },
-          { value: "gpa", label: "Higher historical grades" },
-        ]}
-        onChange={(v) => change("sort", v)}
-      />{/if}
-  </div>
-  {#if chips.length}
-    <ul class="m-0 flex list-none flex-wrap gap-2 p-0" aria-label="Active filters">
-      {#each chips as chip (chip.name)}
-        <li>
-          <button
-            class="inline-flex max-w-full items-center gap-2 border border-border bg-surface px-2 py-1 text-left text-[12px]"
-            type="button"
-            onclick={() => change(chip.name, "")}
-          >
-            <span class="truncate">{chip.label}</span>
-            <span aria-hidden="true">×</span>
-            <span class="sr-only">Remove {chip.label}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
-  {/if}
-  <details class="mt-4" bind:this={disclosure}>
-    <summary class="cursor-pointer text-[13px]">Filters</summary>
-    <div class="mt-4">
-      <FacetControls
-        filters={urlParams}
-        designations={status.designations || []}
-        revision={status.revision}
-        instructorName={results.instructor_name}
-        onChange={change}
-      />
-    </div>
-  </details>
-  <p class="text-[12px] text-muted max-w-[75ch] mt-4 mb-2 coverage mx-0">
-    Historical grades cover up to five years through the selected term. Courses
-    with no letter grades in that window do not match a GPA floor or ceiling.
-    Days and time use class meetings in the selected term, Central time, and
-    ignore exams. A catalog designation is the Guide label in this snapshot,
-    not a degree-audit decision.
-    {ranked
-      ? "Only courses with at least 100 letter grades are ranked."
-      : "Grade sorting prioritizes courses with at least 100 letter grades."}
-  </p>
-  <CourseList
-    courses={results.items}
-    rankStart={ranked ? (results.page - 1) * 30 + 1 : undefined}
-  />
-  <nav
-    class="flex gap-6 mt-6 text-[13px] pagination"
-    aria-label="Course results pages"
+  <CourseFilters
+    {filters}
+    {status}
+    instructorName={results.instructor_name}
+    onChange={change}
+    distributions={facets.data}
+    pending={facets.pending}
+    error={facets.error}
+    onRequest={facets.requestGroup}
   >
+    {#snippet context()}
+      {#if !subject}
+        <FacetSelect
+          label="Department"
+          distribution={facets.data.subject}
+          pending={facets.pending}
+          error={facets.error}
+          onOpenChange={(open) => facets.requestContext("subject", open)}
+          value={filters.subject || ""}
+          options={[
+            { value: "", label: "All departments" },
+            ...status.departments.map((department) => ({
+              value: department.subject,
+              label: departmentLabel(department.subject),
+            })),
+            ...(filters.subject?.includes(",")
+              ? [
+                  {
+                    value: filters.subject,
+                    label: filters.subject
+                      .split(",")
+                      .map(departmentLabel)
+                      .join(" or "),
+                  },
+                ]
+              : []),
+          ]}
+          onChange={(value) => change({ subject: value })}
+        />
+      {/if}
+      {#if showTerm}
+        <FacetSelect
+          label="Term"
+          distribution={facets.data.term}
+          pending={facets.pending}
+          error={facets.error}
+          onOpenChange={(open) => facets.requestContext("term", open)}
+          value={searchFilters.term}
+          options={status.terms.map((term) => ({
+            value: term,
+            label: termName(term),
+          }))}
+          onChange={(value) => change({ term: value })}
+        />
+      {/if}
+      <FacetSelect
+        label="Course availability"
+        distribution={facets.data.availability}
+        pending={facets.pending}
+        error={facets.error}
+        onOpenChange={(open) => facets.requestContext("availability", open)}
+        value={searchFilters.availability}
+        options={[
+          { value: "offered", label: "Recorded offerings" },
+          { value: "all", label: "Full catalog" },
+        ]}
+        onChange={(value) => change({ availability: value })}
+      />
+    {/snippet}
+    {#snippet sorting()}
+      {#if !ranked}
+        <div class="finder-sort">
+          <Select
+            label="Sort courses"
+            variant="compact"
+            value={filters.sort || ""}
+            options={[
+              { value: "", label: "Course match" },
+              { value: "gpa", label: "Higher historical grades" },
+            ]}
+            onChange={(value) => change({ sort: value })}
+          />
+        </div>
+      {/if}
+    {/snippet}
+  </CourseFilters>
+  {#if active.length}
+    <div class="active-filters" aria-label="Active course filters">
+      {#each active as filter (filter.id)}
+        <button
+          type="button"
+          class="filter-chip"
+          aria-label={`Remove ${filter.label}`}
+          onclick={() => clear(filter.keys)}
+          ><span>{filter.label}</span><X size={13} aria-hidden="true" /></button
+        >
+      {/each}
+      <button
+        type="button"
+        class="clear-filters"
+        onclick={() => clear(active.flatMap((filter) => filter.keys))}
+        >Clear filters</button
+      >
+    </div>
+  {/if}
+  <div class="results-heading">
+    <p role="status" aria-live="polite">
+      {#if draft}Updating results…{:else}<strong
+          >{results.total.toLocaleString()}</strong
+        >
+        {results.total === 1 ? "course" : "courses"}{/if}
+    </p>
+  </div>
+  {#if navigationError}<p role="alert" class="navigation-error">
+      {navigationError}
+    </p>{/if}
+  {#if ranked || filters.sort === "gpa"}<p class="ranking-note">
+      {ranked
+        ? "Ranked courses have at least 100 recorded letter grades."
+        : "Grade sorting prioritizes courses with at least 100 recorded letter grades."}
+    </p>{/if}
+  <div aria-busy={draft !== null}>
+    <CourseList
+      courses={results.items}
+      rankStart={ranked ? (results.page - 1) * 30 + 1 : undefined}
+    />
+  </div>
+  <nav class="pagination" aria-label="Course results pages">
     {#if results.page > 1}<a href={pageLink(results.page - 1)}>← Previous</a
-      >{/if}<span>Page {results.page}</span
-    >{#if results.page * 30 < results.total}<a href={pageLink(results.page + 1)}
+      >{/if}
+    <span>Page {results.page}</span>
+    {#if results.page * 30 < results.total}<a href={pageLink(results.page + 1)}
         >Next →</a
       >{/if}
   </nav>
 </section>
 
 <style>
+  .finder {
+    min-width: 0;
+  }
+  .finder-heading {
+    font-size: 27px;
+    font-weight: 500;
+    margin-bottom: 18px;
+  }
+  .finder-search {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
   .finder-search :global(.search-input) {
     flex: 1;
     min-width: 0;
@@ -218,5 +262,89 @@
     background: transparent;
     color: var(--text);
     font: inherit;
+  }
+  .search-button {
+    display: grid;
+    place-items: center;
+    min-height: 42px;
+    padding: 8px 10px;
+    border: 0;
+    background: transparent;
+  }
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-top: 14px;
+  }
+  .filter-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-height: 34px;
+    max-width: 100%;
+    text-align: left;
+    border-color: transparent;
+    background: var(--accent-soft);
+    color: var(--accent);
+    padding: 6px 10px;
+    font-size: 12px;
+  }
+  .filter-chip span {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .filter-chip :global(svg) {
+    flex-shrink: 0;
+  }
+  .clear-filters {
+    border: 0;
+    background: transparent;
+    font-size: 12px;
+    padding: 8px;
+    color: var(--muted);
+  }
+  .finder-sort {
+    margin-left: auto;
+  }
+  .results-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    margin-top: 22px;
+    padding-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--muted);
+  }
+  .results-heading strong {
+    font-weight: 500;
+    color: var(--text);
+  }
+  .ranking-note {
+    margin-top: 10px;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .navigation-error {
+    margin-top: 12px;
+    color: var(--accent);
+    font-size: 13px;
+  }
+  .pagination {
+    display: flex;
+    gap: 24px;
+    margin-top: 24px;
+    font-size: 13px;
+  }
+  @media (max-width: 600px) {
+    .finder-sort {
+      margin-left: 0;
+    }
+    .finder-search {
+      gap: 4px;
+    }
   }
 </style>

@@ -14,7 +14,7 @@
 </script>
 
 <div
-  class="flex justify-between items-baseline gap-6 mt-4 mb-10 search-heading mx-0"
+  class="flex justify-between items-baseline gap-6 mt-2 mb-5 search-heading mx-0"
 >
   <h1 class="text-[38px] font-medium">
     {data.results.kind === "course" ? "Explore courses" : "Find a professor"}
@@ -24,6 +24,7 @@
 {#if data.results.kind === "course"}
   <CourseCollections />
   <CourseFinder
+    showHeading={false}
     path={page.url.pathname}
     results={data.results}
     status={data.status}

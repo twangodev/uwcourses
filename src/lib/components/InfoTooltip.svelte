@@ -10,6 +10,9 @@
     trigger,
     contentClass = "info-tooltip",
     triggerClass = "info-trigger",
+    onclick,
+    pressed,
+    disabled = false,
   }: {
     label: string;
     open?: boolean;
@@ -17,6 +20,9 @@
     trigger?: Snippet;
     contentClass?: string;
     triggerClass?: string;
+    onclick?: (event: MouseEvent) => void;
+    pressed?: boolean;
+    disabled?: boolean;
   } = $props();
 </script>
 
@@ -25,7 +31,12 @@
     <Tooltip.Trigger
       class={triggerClass}
       aria-label={label}
-      onclick={() => (open = true)}
+      aria-pressed={pressed}
+      {disabled}
+      onclick={(event) => {
+        onclick?.(event);
+        open = true;
+      }}
     >
       {#if trigger}{@render trigger()}{:else}<Info size={14} />{/if}
     </Tooltip.Trigger>

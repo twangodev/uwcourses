@@ -14,11 +14,11 @@
 
 <nav
   aria-label="Course collections"
-  class="flex flex-wrap gap-y-3.5 gap-x-8 mt-3 mb-9 collections mx-0"
+  class="flex flex-wrap gap-y-2 gap-x-6 mt-2 mb-5 collections mx-0"
 >
   {#each Object.entries(courseCollections) as [slug, collection]}
     <a
-      class="inline-flex items-center gap-3.5 border-b border-b-border text-[15px] py-3 px-0"
+      class="inline-flex items-center gap-3.5 border-b border-b-border text-[13px] py-2 px-0"
       href={`${subject ? `/departments/${encodeURIComponent(subject)}` : "/courses"}/${slug}${query ? `?${query}` : ""}`}
       aria-current={active === slug ? "page" : undefined}
       >{collection.title}<span class="text-muted" aria-hidden="true">↗</span></a
