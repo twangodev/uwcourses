@@ -60,7 +60,9 @@ class DiscoveryTests(unittest.TestCase):
 
 class DiscoveryFactTests(unittest.TestCase):
     def test_season_and_requisite_and_designation_rules(self):
-        self.assertEqual(seasons_in("Fall, Spring, Summer"), ["fall", "spring", "summer"])
+        self.assertEqual(
+            seasons_in("Fall, Spring, Summer"), ["fall", "spring", "summer"]
+        )
         self.assertEqual(seasons_in("Every Other Fall"), ["fall"])
         self.assertEqual(seasons_in("Occasionally"), [])
         self.assertEqual(seasons_in("Not Applicable"), [])
@@ -69,7 +71,9 @@ class DiscoveryFactTests(unittest.TestCase):
             requisite_kind(
                 {
                     "status": "parsed",
-                    "nodes": [{"condition": "No prerequisites listed.", "course": None}],
+                    "nodes": [
+                        {"condition": "No prerequisites listed.", "course": None}
+                    ],
                 }
             ),
             "none",
@@ -78,7 +82,9 @@ class DiscoveryFactTests(unittest.TestCase):
             requisite_kind(
                 {
                     "status": "needs_review",
-                    "nodes": [{"course": {"subjects": ["COMPSCI"], "course_number": 200}}],
+                    "nodes": [
+                        {"course": {"subjects": ["COMPSCI"], "course_number": 200}}
+                    ],
                 }
             ),
             "none",
@@ -134,7 +140,9 @@ class DiscoveryFactTests(unittest.TestCase):
 
     def test_schedule_seasons_requisites_and_designations_are_indexed(self):
         db = sqlite3.connect(":memory:")
-        db.executescript("CREATE TABLE courses(uid,payload);CREATE TABLE grades(uid,term,section,payload);")
+        db.executescript(
+            "CREATE TABLE courses(uid,payload);CREATE TABLE grades(uid,term,section,payload);"
+        )
         course = {
             "course_uid": "c",
             "course_number": 300,
@@ -185,7 +193,9 @@ class DiscoveryFactTests(unittest.TestCase):
         ]
         build_discovery(db, [], meetings)
         self.assertEqual(
-            db.execute("SELECT mode FROM section_modes ORDER BY section_number").fetchall(),
+            db.execute(
+                "SELECT mode FROM section_modes ORDER BY section_number"
+            ).fetchall(),
             [("in_person",), ("other",)],
         )
         rows = db.execute(
@@ -196,9 +206,13 @@ class DiscoveryFactTests(unittest.TestCase):
             db.execute("SELECT season FROM course_seasons ORDER BY season").fetchall(),
             [("fall",), ("spring",)],
         )
-        self.assertEqual(db.execute("SELECT kind FROM requisite_kinds").fetchone()[0], "none")
         self.assertEqual(
-            db.execute("SELECT family,value FROM course_designations ORDER BY family").fetchall(),
+            db.execute("SELECT kind FROM requisite_kinds").fetchone()[0], "none"
+        )
+        self.assertEqual(
+            db.execute(
+                "SELECT family,value FROM course_designations ORDER BY family"
+            ).fetchall(),
             [
                 ("breadth", "natural-science"),
                 ("catalog-level", "intermediate"),

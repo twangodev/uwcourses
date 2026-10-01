@@ -159,7 +159,9 @@ def requisite_kind(requirements):
             continue
         if node.get("course"):
             return "listed"
-        condition = " ".join(str(node.get("condition") or "").split()).casefold().rstrip(".")
+        condition = (
+            " ".join(str(node.get("condition") or "").split()).casefold().rstrip(".")
+        )
         if condition not in PLACEHOLDER_CONDITIONS:
             return "listed"
     return "none"

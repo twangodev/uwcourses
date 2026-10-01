@@ -13,7 +13,11 @@ import sqlite3
 import pyarrow.parquet as pq
 from .instructor_stats import attach_ratings
 from .discovery import build_discovery
-from .search_projection import build_search_projection, TABLES as SEARCH_TABLES, POLICY_PATH
+from .search_projection import (
+    build_search_projection,
+    TABLES as SEARCH_TABLES,
+    POLICY_PATH,
+)
 from .campus import CampusSchedule
 
 ROOT = Path.cwd()
