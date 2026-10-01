@@ -51,17 +51,7 @@ export function database(
   return primaryDatabase(binding);
 }
 
-export function sqlValues(values: readonly unknown[]) {
-  return values.map((value) => {
-    if (
-      value === null ||
-      typeof value === "string" ||
-      (typeof value === "number" && Number.isFinite(value))
-    )
-      return value;
-    throw new Error("Invalid SQL parameter");
-  });
-}
+export { sqlValues } from "./sql-parameters";
 
 export function primaryDatabase(binding: D1Database) {
   let client = clients.get(binding);

@@ -37,13 +37,15 @@ export function courseSearchScope(
     ? [
         highlights.projection?.window
           ? "history AS (SELECT uid,grade_count,history_gpa FROM grade_windows WHERE term=?)"
-          : `history AS (SELECT uid,${totals} grade_count,SUM(a*4+ab*3.5+b*3+bc*2.5+c*2+d)*1.0/NULLIF(${totals},0) history_gpa FROM grade_summaries WHERE term<=? AND CAST(term AS INTEGER)>? GROUP BY uid)`,
+          : `history AS (SELECT uid,${totals} grade_count,SUM(a*4+ab*3.5+b*3+bc*2.5+c*2+d)*1.0/NULLIF(${totals},0) history_gpa FROM grade_summaries WHERE term<=? AND term>? GROUP BY uid)`,
       ]
     : [];
   let from =
     "courses c" + (history ? " LEFT JOIN history h ON h.uid=c.uid" : "");
   const values: unknown[] = history
-    ? highlights.projection?.window ? [query.term] : [query.term, Number(query.term) - 50]
+    ? highlights.projection?.window
+      ? [query.term]
+      : [query.term, String(Number(query.term) - 50).padStart(4, "0")]
     : [];
   const tags = [...new Set([...query.tags, ...(highlights.tags ?? [])])];
   if (tags.length) {

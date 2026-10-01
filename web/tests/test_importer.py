@@ -7,6 +7,7 @@ from unittest.mock import patch
 from uwcourses_site import importer
 from uwcourses_site.importer import chunks, grade_stats, MAX_CHUNK
 from uwcourses_site.cli import check_assets
+from uwcourses_site.search_projection import TABLES as SEARCH_TABLES
 
 
 class PublicationTests(unittest.TestCase):
@@ -116,6 +117,13 @@ class PublicationTests(unittest.TestCase):
             "offerings",
             "grade_summaries",
             "reviews",
+            *[
+                table
+                for table in SEARCH_TABLES
+                if source.execute(
+                    "SELECT 1 FROM sqlite_master WHERE name=?", (table,)
+                ).fetchone()
+            ],
         ]:
             self.assertEqual(
                 restored.execute(f"SELECT count(*) FROM {table}").fetchone(),

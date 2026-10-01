@@ -18,18 +18,22 @@ export function courseTagScope(
   const subjectFilter = subjects.length
     ? ` WHERE EXISTS(SELECT 1 FROM subjects s WHERE s.uid=c.uid AND s.subject IN (${subjects.map(() => "?").join(",")}))`
     : "";
-  ctes.push(`tag_candidates AS MATERIALIZED (SELECT c.uid FROM courses c${subjectFilter})`);
+  ctes.push(
+    `tag_candidates AS MATERIALIZED (SELECT c.uid FROM courses c${subjectFilter})`,
+  );
   values.push(...subjects);
 
   if (
     tags.some((tag) => tag === "small-lectures" || tag === "large-lectures")
   ) {
     if (projected) {
-      ctes.push(`tag_lecture_medians AS (SELECT l.uid,l.median FROM lecture_sizes l JOIN tag_candidates c ON c.uid=l.uid WHERE l.term=?)`);
+      ctes.push(
+        `tag_lecture_medians AS (SELECT l.uid,l.median FROM lecture_sizes l JOIN tag_candidates c ON c.uid=l.uid WHERE l.term=?)`,
+      );
       values.push(query.term);
     } else {
-    // Match badge deduplication: the last positive observation of each lecture wins.
-    ctes.push(`tag_lecture_rows AS (
+      // Match badge deduplication: the last positive observation of each lecture wins.
+      ctes.push(`tag_lecture_rows AS (
       SELECT c.uid,
         json_extract(j.value,'$.enrolled') enrolled,
         ROW_NUMBER() OVER (PARTITION BY c.uid,COALESCE(NULLIF(json_extract(j.value,'$.section_uid'),''),
@@ -39,12 +43,12 @@ export function courseTagScope(
       WHERE json_extract(j.value,'$.term_id')=? AND json_extract(j.value,'$.section_type')='LEC'
         AND json_type(j.value,'$.enrolled') IN ('integer','real') AND json_extract(j.value,'$.enrolled')>0
     )`);
-    values.push(query.term);
-    ctes.push(`tag_lecture_order AS (
+      values.push(query.term);
+      ctes.push(`tag_lecture_order AS (
       SELECT uid,enrolled,ROW_NUMBER() OVER (PARTITION BY uid ORDER BY enrolled) position,
         COUNT(*) OVER (PARTITION BY uid) sections FROM tag_lecture_rows WHERE observation=1
     )`);
-    ctes.push(`tag_lecture_medians AS (
+      ctes.push(`tag_lecture_medians AS (
       SELECT uid,AVG(enrolled) median FROM tag_lecture_order
       WHERE position IN ((sections+1)/2,(sections+2)/2) GROUP BY uid
     )`);
@@ -56,8 +60,11 @@ export function courseTagScope(
   if (tags.some((tag) => tag === "higher-grades" || tag === "lower-grades")) {
     const count = "a+ab+b+bc+c+d+f";
     if (projected) {
-      ctes.push(`tag_grade_terms AS (SELECT g.uid,g.term,g.grade_count count,g.gpa FROM tag_latest_grades l JOIN grade_metrics g ON g.uid=l.uid AND g.term=l.term)`);
-    } else ctes.push(`tag_grade_terms AS (
+      ctes.push(
+        `tag_grade_terms AS (SELECT g.uid,g.term,g.grade_count count,g.gpa FROM tag_latest_grades l JOIN grade_metrics g ON g.uid=l.uid AND g.term=l.term)`,
+      );
+    } else
+      ctes.push(`tag_grade_terms AS (
       SELECT uid,term,${count} count,(a*4+ab*3.5+b*3+bc*2.5+c*2+d)*1.0/(${count}) gpa
       FROM grade_summaries WHERE term<=? AND (${count})>0
     )`);
@@ -67,8 +74,12 @@ export function courseTagScope(
         SELECT g.*,s.subject FROM tag_grade_terms g JOIN subjects s ON s.uid=g.uid
         UNION ALL SELECT g.*,'school' subject FROM tag_grade_terms g
       )`);
-      if (projected) ctes.push("tag_grade_benchmarks AS (SELECT term,subject,gpa FROM grade_benchmarks)");
-      else ctes.push(`tag_grade_benchmarks AS (
+      if (projected)
+        ctes.push(
+          "tag_grade_benchmarks AS (SELECT term,subject,gpa FROM grade_benchmarks)",
+        );
+      else
+        ctes.push(`tag_grade_benchmarks AS (
         SELECT term,subject,AVG(gpa) gpa FROM tag_grade_cohorts WHERE count>=${tagThresholds.letterGrades}
         GROUP BY term,subject HAVING COUNT(*)>=${tagThresholds.benchmarkCourses}
       )`);
@@ -78,14 +89,16 @@ export function courseTagScope(
           ? " AND EXISTS(SELECT 1 FROM subjects s WHERE s.uid=g.uid AND s.subject=?)"
           : "";
       if (projected) {
-        ctes.push("tag_grade_benchmarks AS (SELECT term,gpa FROM grade_benchmarks WHERE subject=?)");
+        ctes.push(
+          "tag_grade_benchmarks AS (SELECT term,gpa FROM grade_benchmarks WHERE subject=?)",
+        );
         values.push(subjects.length === 1 ? subjects[0] : "school");
       } else {
-      ctes.push(`tag_grade_benchmarks AS (
+        ctes.push(`tag_grade_benchmarks AS (
         SELECT term,AVG(gpa) gpa FROM tag_grade_terms g WHERE count>=${tagThresholds.letterGrades}${cohort}
         GROUP BY term HAVING COUNT(*)>=${tagThresholds.benchmarkCourses}
       )`);
-      if (subjects.length === 1) values.push(subjects[0]);
+        if (subjects.length === 1) values.push(subjects[0]);
       }
     }
     ctes.push(
@@ -105,15 +118,17 @@ export function courseTagScope(
     const count = "json_extract(i.payload,'$.ratings.quality_count')";
     const adjusted = `(${quality}*${count}+?*${ratingPriorWeight})/(${count}+${ratingPriorWeight})`;
     if (projected) {
-      ctes.push(`tag_rated_teachers AS (SELECT DISTINCT t.course_uid uid FROM teaching t JOIN instructor_search_ratings r ON r.uid=t.instructor_uid WHERE t.term=? AND r.quality BETWEEN 1 AND 5 AND r.quality_count>=${tagThresholds.qualityRatings} AND r.bayesian_quality BETWEEN ${tagThresholds.quality} AND 5)`);
+      ctes.push(
+        `tag_rated_teachers AS (SELECT DISTINCT t.course_uid uid FROM teaching t JOIN instructor_search_ratings r ON r.uid=t.instructor_uid WHERE t.term=? AND r.quality BETWEEN 1 AND 5 AND r.quality_count>=${tagThresholds.qualityRatings} AND r.bayesian_quality BETWEEN ${tagThresholds.quality} AND 5)`,
+      );
       values.push(query.term);
     } else {
-    ctes.push(`tag_rated_teachers AS (
+      ctes.push(`tag_rated_teachers AS (
       SELECT DISTINCT t.course_uid uid FROM teaching t JOIN instructors i ON i.uid=t.instructor_uid
       WHERE t.term=? AND ${quality} BETWEEN 1 AND 5 AND ${count}>=${tagThresholds.qualityRatings}
         AND ${adjusted} BETWEEN ${tagThresholds.quality} AND 5
     )`);
-    values.push(query.term, ratingPrior);
+      values.push(query.term, ratingPrior);
     }
     sources.push(
       `SELECT uid,'rated-teacher' tag${unscoped} FROM tag_rated_teachers`,

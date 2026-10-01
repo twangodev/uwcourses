@@ -10,7 +10,12 @@ const parsed = ts.parseJsonConfigFileContent(
   process.cwd(),
 );
 const program = ts.createProgram(
-  ["web/typecheck-search.ts", "src/app.d.ts", ".svelte-kit/ambient.d.ts"],
+  [
+    "web/typecheck-search.ts",
+    "web/benchmark-search.ts",
+    "src/app.d.ts",
+    ".svelte-kit/ambient.d.ts",
+  ],
   parsed.options,
 );
 const diagnostics = [...parsed.errors, ...ts.getPreEmitDiagnostics(program)];

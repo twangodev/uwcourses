@@ -34,9 +34,12 @@ import { z } from "zod";
 import { searchReadQueue } from "./search-reader";
 
 const countRow = z.object({
-  value: z.union([z.string(), z.number()]).nullable(), label: z.string().nullable().optional(),
-  count: z.number().int().nonnegative(), matched: z.number().int().nonnegative(),
-  total: z.number().int().nonnegative(), total_matched: z.number().int().nonnegative(),
+  value: z.union([z.string(), z.number()]).nullable(),
+  label: z.string().nullable().optional(),
+  count: z.number().int().nonnegative(),
+  matched: z.number().int().nonnegative(),
+  total: z.number().int().nonnegative(),
+  total_matched: z.number().int().nonnegative(),
   missing: z.number().int().nonnegative().optional(),
 });
 type FacetRead = ReturnType<typeof searchReadQueue>;
@@ -77,7 +80,12 @@ function without(url: URL, id: DistributionId) {
   return copy;
 }
 
-async function facetScope(url: URL, current: CourseQuery, id: DistributionId, platform?: App.Platform) {
+async function facetScope(
+  url: URL,
+  current: CourseQuery,
+  id: DistributionId,
+  platform?: App.Platform,
+) {
   const context = parse(url, current.term);
   let own = courseFacetTerm(current, id);
   if (id === "availability" && current.instructor) {
@@ -99,7 +107,8 @@ async function facetScope(url: URL, current: CourseQuery, id: DistributionId, pl
       projection: searchProjection(context.term),
       tags: id === "tags" ? courseTagValues : undefined,
       ratingPrior:
-        !searchProjection(context.term).available && (id === "tags" || context.tags.includes("rated-teacher"))
+        !searchProjection(context.term).available &&
+        (id === "tags" || context.tags.includes("rated-teacher"))
           ? await instructorRatingPrior(platform)
           : null,
     },
@@ -131,9 +140,15 @@ async function aggregateWithRead(
   platform?: App.Platform,
   label?: string,
 ): Promise<FacetDistribution> {
-  const { scope, prefix, from, selected, values } = await facetScope(url, current, id, platform);
+  const { scope, prefix, from, selected, values } = await facetScope(
+    url,
+    current,
+    id,
+    platform,
+  );
   if (id === "tags") {
-    const rows = await read(countRow,
+    const rows = await read(
+      countRow,
       `${prefix}, tag_eligible AS (SELECT c.uid,${selected} matches FROM eligible c),
         tag_totals AS (SELECT COUNT(*) total,COUNT(CASE WHEN matches THEN 1 END) total_matched FROM tag_eligible)
         SELECT ct.tag value,COUNT(DISTINCT e.uid) count,
@@ -157,57 +172,107 @@ async function aggregateWithRead(
     };
   }
   const bucketFrom = `eligible_matches c${scope.history ? " LEFT JOIN history h ON h.uid=c.uid" : ""}${joins}${extra ? ` WHERE ${extra}` : ""}`;
-  const rows = await read(countRow,
+  const rows = await read(
+    countRow,
     `${prefix}, eligible_matches AS MATERIALIZED (SELECT c.*,${selected} matches FROM ${from}),
       bucketed AS MATERIALIZED (SELECT c.uid,${value} value,${label || "NULL"} label,c.matches FROM ${bucketFrom}),
       totals AS (SELECT COUNT(*) total,COUNT(CASE WHEN matches THEN 1 END) total_matched,
         COUNT(*)-(SELECT COUNT(DISTINCT uid) FROM bucketed) missing FROM eligible_matches)
       SELECT b.value,MIN(b.label) label,COUNT(DISTINCT b.uid) count,
         COUNT(DISTINCT CASE WHEN b.matches THEN b.uid END) matched,t.total,t.total_matched,t.missing
-      FROM totals t LEFT JOIN bucketed b ON 1 GROUP BY b.value ORDER BY count DESC,b.value`, values);
+      FROM totals t LEFT JOIN bucketed b ON 1 GROUP BY b.value ORDER BY count DESC,b.value`,
+    values,
+  );
   return {
-    total: rows[0].total, matched: rows[0].total_matched, missing: rows[0].missing ?? 0,
-    bins: rows.filter((row) => row.count > 0).map((row) => ({ value: String(row.value), label: row.label || String(row.value), count: row.count, matched: row.matched })),
+    total: rows[0].total,
+    matched: rows[0].total_matched,
+    missing: rows[0].missing ?? 0,
+    bins: rows
+      .filter((row) => row.count > 0)
+      .map((row) => ({
+        value: String(row.value),
+        label: row.label || String(row.value),
+        count: row.count,
+        matched: row.matched,
+      })),
   };
 }
 
 /** Count schedule alternatives without expanding one database request per option. */
-async function optionDistribution(read: FacetRead, url: URL, current: CourseQuery,
-  id: "days" | "time" | "mode" | "availability", options: readonly string[], platform?: App.Platform): Promise<FacetDistribution> {
-  const { prefix, from, selected, values } = await facetScope(url, current, id, platform);
+async function optionDistribution(
+  read: FacetRead,
+  url: URL,
+  current: CourseQuery,
+  id: "days" | "time" | "mode" | "availability",
+  options: readonly string[],
+  platform?: App.Platform,
+): Promise<FacetDistribution> {
+  const { prefix, from, selected, values } = await facetScope(
+    url,
+    current,
+    id,
+    platform,
+  );
   const condition = (tokens: string) => {
     const candidate = new URL(url);
     candidate.searchParams.set(id, tokens);
     if (id === "days") candidate.searchParams.set("days_match", "any");
     const query = parse(candidate, current.term);
     const own = courseFacetTerm(query, id);
-    const instructor = id === "availability" ? courseFacetTerm(query, "instructor") : undefined;
-    return { sql: (own?.sql ?? "") + (instructor?.sql ?? ""), values: [...(own?.values ?? []), ...(instructor?.values ?? [])] };
+    const instructor =
+      id === "availability" ? courseFacetTerm(query, "instructor") : undefined;
+    return {
+      sql: (own?.sql ?? "") + (instructor?.sql ?? ""),
+      values: [...(own?.values ?? []), ...(instructor?.values ?? [])],
+    };
   };
-  const covered = id === "availability" ? { sql: "1", values: [] } : condition(options.join(","));
+  const covered =
+    id === "availability"
+      ? { sql: "1", values: [] }
+      : condition(options.join(","));
   const predicate = (sql: string) => sql.replace(/^ AND /, "") || "1";
-  const coverage = id === "availability" ? { sql: "1", values: [] } : { ...covered, sql: predicate(covered.sql) };
+  const coverage =
+    id === "availability"
+      ? { sql: "1", values: [] }
+      : { ...covered, sql: predicate(covered.sql) };
   const columns: string[] = [];
   const binds = [...values, ...coverage.values];
   options.forEach((value, index) => {
     const candidate = condition(value);
     const sql = predicate(candidate.sql);
-    columns.push(`COUNT(CASE WHEN ${sql} THEN 1 END) count_${index},COUNT(CASE WHEN (${sql}) AND matches THEN 1 END) matched_${index}`);
+    columns.push(
+      `COUNT(CASE WHEN ${sql} THEN 1 END) count_${index},COUNT(CASE WHEN (${sql}) AND matches THEN 1 END) matched_${index}`,
+    );
     binds.push(...candidate.values, ...candidate.values);
   });
   const number = z.number().int().nonnegative();
-  const [row] = await read(z.object({ total: number, total_matched: number, covered: number }).catchall(number),
+  const [row] = await read(
+    z
+      .object({ total: number, total_matched: number, covered: number })
+      .catchall(number),
     `${prefix}, eligible_matches AS MATERIALIZED (SELECT c.*,${selected} matches FROM ${from})
       SELECT COUNT(*) total,COUNT(CASE WHEN matches THEN 1 END) total_matched,
-        COUNT(CASE WHEN ${coverage.sql} THEN 1 END) covered,${columns.join(",")} FROM eligible_matches c`, binds);
+        COUNT(CASE WHEN ${coverage.sql} THEN 1 END) covered,${columns.join(",")} FROM eligible_matches c`,
+    binds,
+  );
   return {
-    total: row.total, matched: row.total_matched, missing: row.total - row.covered,
+    total: row.total,
+    matched: row.total_matched,
+    missing: row.total - row.covered,
     bins: options.map((value, index) => ({
-      value, label: id === "days" ? dayLabels[value as keyof typeof dayLabels]
-        : id === "time" ? timeLabels[value as keyof typeof timeLabels]
-        : id === "mode" ? modeLabels[value as keyof typeof modeLabels]
-        : value === "all" ? "Full catalog" : "Recorded offerings",
-      count: row[`count_${index}`], matched: row[`matched_${index}`],
+      value,
+      label:
+        id === "days"
+          ? dayLabels[value as keyof typeof dayLabels]
+          : id === "time"
+            ? timeLabels[value as keyof typeof timeLabels]
+            : id === "mode"
+              ? modeLabels[value as keyof typeof modeLabels]
+              : value === "all"
+                ? "Full catalog"
+                : "Recorded offerings",
+      count: row[`count_${index}`],
+      matched: row[`matched_${index}`],
     })),
   };
 }
@@ -229,9 +294,11 @@ async function departmentTagDistribution(
       projection: searchProjection(context.term),
       tags: context.tags,
       allTagSubjects: true,
-      ratingPrior: !searchProjection(context.term).available && context.tags.includes("rated-teacher")
-        ? await instructorRatingPrior(platform)
-        : null,
+      ratingPrior:
+        !searchProjection(context.term).available &&
+        context.tags.includes("rated-teacher")
+          ? await instructorRatingPrior(platform)
+          : null,
     },
   );
   const alternatives = tagTerm(context, { column: "s.subject" })!;
@@ -240,7 +307,8 @@ async function departmentTagDistribution(
   })!;
   const subject = courseFacetTerm(current, "subject");
   const original = tagTerm(context, { value: "school" })!;
-  const rows = await read(countRow,
+  const rows = await read(
+    countRow,
     `${scope.prefix}, eligible AS (SELECT DISTINCT c.uid FROM ${scope.from} WHERE ${scope.where}),
       alternatives AS (SELECT c.uid,s.subject FROM eligible c JOIN subjects s ON s.uid=c.uid WHERE 1=1${alternatives.sql}),
       selected AS (SELECT c.uid FROM eligible c WHERE 1=1${selected.sql}${subject?.sql ?? ""}),
@@ -447,8 +515,20 @@ export async function courseDistributions(
         case "time":
         case "mode":
         case "availability":
-          result = await optionDistribution(read, context, current, id,
-            id === "days" ? weekdays : id === "time" ? timeBuckets : id === "mode" ? instructionModes : ["offered", "all"], platform);
+          result = await optionDistribution(
+            read,
+            context,
+            current,
+            id,
+            id === "days"
+              ? weekdays
+              : id === "time"
+                ? timeBuckets
+                : id === "mode"
+                  ? instructionModes
+                  : ["offered", "all"],
+            platform,
+          );
           break;
         case "term": {
           const options = published.terms;

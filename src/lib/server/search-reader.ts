@@ -1,6 +1,7 @@
 import { z } from "zod";
 import { building, dev } from "$lib/server/runtime";
 import { error } from "@sveltejs/kit";
+import { sqlValues } from "./sql-parameters";
 import { localDatabase } from "./database";
 
 export type SearchReadContext = {
@@ -21,15 +22,7 @@ export type QueryMeasurement = {
 type Statement = { sql: string; values?: readonly unknown[]; family?: string };
 
 function prepareRead(statement: Statement) {
-  const values = (statement.values ?? []).map((value) => {
-    if (
-      value === null ||
-      typeof value === "string" ||
-      (typeof value === "number" && Number.isFinite(value))
-    )
-      return value;
-    throw new Error("Invalid search SQL parameter");
-  });
+  const values = sqlValues(statement.values ?? []);
   const parts = statement.sql.split("?");
   if (parts.length !== values.length + 1)
     throw new Error("SQL parameter count mismatch");
