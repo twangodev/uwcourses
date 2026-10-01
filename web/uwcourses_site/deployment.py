@@ -11,6 +11,8 @@ import os
 from pathlib import Path
 import re
 import subprocess
+import sys
+import time
 from uuid import uuid4
 from typing import Any
 
@@ -59,13 +61,47 @@ def worker_state(account: str, token: str, worker: str) -> dict[str, str] | None
 
 
 def wrangler(config: Path, *args: str, capture: bool = False) -> str:
-    result = subprocess.run(
-        ["bun", "x", "--no-install", "wrangler", "--config", str(config), *args],
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE if capture else None,
-    )
+    try:
+        result = subprocess.run(
+            ["bun", "x", "--no-install", "wrangler", "--config", str(config), *args],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as failure:
+        print(failure.stdout or "", end="", flush=True)
+        print(failure.stderr or "", end="", file=sys.stderr, flush=True)
+        raise
+    if not capture:
+        print(result.stdout or "", end="", flush=True)
+    print(result.stderr or "", end="", file=sys.stderr, flush=True)
     return result.stdout or ""
+
+
+def cancelled_import(failure: subprocess.CalledProcessError) -> bool:
+    output = (failure.stdout or "") + (failure.stderr or "")
+    return "Cancelled due to no poll() received" in output
+
+
+def import_part(config: Path, part: Path) -> None:
+    delays = (2, 5, 10)
+    for attempt in range(len(delays) + 1):
+        try:
+            wrangler(config, "d1", "execute", "DB", "--remote", "--file", str(part))
+            return
+        except subprocess.CalledProcessError as failure:
+            # D1 explicitly cancels and rolls back this file. A lost response or
+            # arbitrary SQL failure does not establish that replay is safe.
+            if not cancelled_import(failure) or attempt == len(delays):
+                raise
+            delay = delays[attempt]
+            print(
+                f"D1 cancelled {part.name}; retry {attempt + 1}/{len(delays)} "
+                f"in {delay}s",
+                flush=True,
+            )
+            time.sleep(delay)
 
 
 def verify_database(output: str, release: Release) -> Any:
@@ -101,6 +137,113 @@ def current_commit(commit: str) -> bool:
     return response.json()["sha"] == commit
 
 
+def database_report(config: Path) -> str | None:
+    output = wrangler(
+        config,
+        "d1",
+        "execute",
+        "DB",
+        "--remote",
+        "--json",
+        "--command",
+        "SELECT count(*) tables FROM sqlite_master WHERE type='table' "
+        "AND name IN ('metadata','courses')",
+        capture=True,
+    )
+    if json.loads(output)[0]["results"][0]["tables"] != 2:
+        return None
+    return wrangler(
+        config,
+        "d1",
+        "execute",
+        "DB",
+        "--remote",
+        "--json",
+        "--command",
+        "SELECT (SELECT value FROM metadata WHERE key='ready') ready, "
+        "(SELECT value FROM metadata WHERE key='status') status, "
+        "(SELECT value FROM metadata WHERE key='serving') serving, "
+        "(SELECT count(*) FROM courses) courses",
+        capture=True,
+    )
+
+
+@dataclass(frozen=True)
+class PublishedDatabase:
+    status: str
+    courses: int
+    serving: str
+
+    @classmethod
+    def read(cls, report: str) -> "PublishedDatabase":
+        results = json.loads(report)
+        if not results or results[0].get("success") is not True:
+            raise ValueError("D1 state could not be verified")
+        row = results[0]["results"][0]
+        status = json.loads(row["status"])
+        if (
+            row["courses"] < 1
+            or row["courses"] != status.get("courses")
+            or not re.fullmatch(r"[a-f0-9]{32}", row.get("serving") or "")
+        ):
+            raise ValueError("Published database is incomplete")
+        return cls(row["status"], row["courses"], row["serving"])
+
+
+def published_database(
+    config: Path, state: dict[str, str] | None
+) -> PublishedDatabase | None:
+    if state is None or not re.fullmatch(
+        r"[a-f0-9]{64}", state.get("DATA_PROJECTION") or ""
+    ):
+        return None
+    settings = json.loads(config.read_text())
+    if state.get("DB") != settings["d1_databases"][0]["database_id"]:
+        return None
+    report = database_report(config)
+    if report is None:
+        return None
+    try:
+        snapshot = PublishedDatabase.read(report)
+        if json.loads(snapshot.status).get("projection_id") == state.get(
+            "DATA_PROJECTION"
+        ):
+            return snapshot
+    except (ValueError, TypeError, KeyError, IndexError):
+        pass
+    return None
+
+
+def restore_readiness(config: Path, snapshot: PublishedDatabase) -> None:
+    report = database_report(config)
+    if report is None or PublishedDatabase.read(report) != snapshot:
+        raise ValueError("Previous database changed; search remains unavailable")
+
+    def quote(value: str) -> str:
+        return "'" + value.replace("'", "''") + "'"
+
+    wrangler(
+        config,
+        "d1",
+        "execute",
+        "DB",
+        "--remote",
+        "--command",
+        "UPDATE metadata SET value='true' WHERE key='ready' AND value='false' "
+        f"AND (SELECT value FROM metadata WHERE key='status')={quote(snapshot.status)} "
+        f"AND (SELECT value FROM metadata WHERE key='serving')={quote(snapshot.serving)} "
+        f"AND (SELECT count(*) FROM courses)={snapshot.courses};",
+    )
+    report = database_report(config)
+    if (
+        report is None
+        or PublishedDatabase.read(report) != snapshot
+        or json.loads(report)[0]["results"][0]["ready"] != "true"
+    ):
+        raise ValueError("Previous database readiness could not be restored")
+    print("Restored search for the verified previous release", flush=True)
+
+
 def deploy(config: Path, site: Path, first: bool = False) -> None:
     release = Release.read(site / "status.json")
     settings = json.loads(config.read_text())
@@ -129,6 +272,7 @@ def deploy(config: Path, site: Path, first: bool = False) -> None:
         parts = sorted((site / "sql").glob("*.sql"))
         if not parts:
             raise ValueError("No dataset SQL import files found")
+        previous = published_database(config, state)
         # This precedes every destructive import statement. Requests fail closed
         # while ready is false/missing or the database belongs to another release.
         wrangler(
@@ -141,21 +285,23 @@ def deploy(config: Path, site: Path, first: bool = False) -> None:
             "CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT); "
             "INSERT OR REPLACE INTO metadata VALUES('ready','false');",
         )
-        for part in parts:
-            wrangler(config, "d1", "execute", "DB", "--remote", "--file", str(part))
-    output = wrangler(
-        config,
-        "d1",
-        "execute",
-        "DB",
-        "--remote",
-        "--json",
-        "--command",
-        "SELECT (SELECT value FROM metadata WHERE key='ready') ready, "
-        "(SELECT value FROM metadata WHERE key='status') status, "
-        "(SELECT count(*) FROM courses) courses",
-        capture=True,
-    )
+        for index, part in enumerate(parts):
+            try:
+                import_part(config, part)
+            except subprocess.CalledProcessError as failure:
+                if index == 0 and previous and cancelled_import(failure):
+                    try:
+                        if worker_state(account, token, worker) != state:
+                            raise RuntimeError(
+                                "Worker changed; refusing readiness recovery"
+                            )
+                        restore_readiness(config, previous)
+                    except Exception as recovery:
+                        print(f"Readiness recovery failed: {recovery}", file=sys.stderr)
+                raise
+    output = database_report(config)
+    if output is None:
+        raise ValueError("Imported database tables are missing")
     report = verify_database(output, release)
     (site / "d1-check.json").write_text(json.dumps(report, indent=2) + "\n")
     if worker_state(account, token, worker) != state:
@@ -187,32 +333,9 @@ def deploy(config: Path, site: Path, first: bool = False) -> None:
 def database_matches(config: Path, release: Release) -> bool:
     # Inspect the database itself so a retry after failed Worker publication can
     # reuse an already verified import, even if the live Worker is still older.
-    output = wrangler(
-        config,
-        "d1",
-        "execute",
-        "DB",
-        "--remote",
-        "--json",
-        "--command",
-        "SELECT count(*) tables FROM sqlite_master WHERE type='table' AND name IN ('metadata','courses')",
-        capture=True,
-    )
-    if json.loads(output)[0]["results"][0]["tables"] != 2:
+    output = database_report(config)
+    if output is None:
         return False
-    output = wrangler(
-        config,
-        "d1",
-        "execute",
-        "DB",
-        "--remote",
-        "--json",
-        "--command",
-        "SELECT (SELECT value FROM metadata WHERE key='ready') ready, "
-        "(SELECT value FROM metadata WHERE key='status') status, "
-        "(SELECT count(*) FROM courses) courses",
-        capture=True,
-    )
     try:
         verify_database(output, release)
         return True
