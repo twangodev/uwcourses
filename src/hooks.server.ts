@@ -1,3 +1,4 @@
+import { searchRequestPlatform } from "$lib/server/search-session";
 import { withDatabaseAvailability } from "$lib/server/database-availability";
 import { isFilteredDocument } from "$lib/server/documents/storage";
 import { ZodError } from "zod";
@@ -65,7 +66,10 @@ export const handle: Handle = async ({ event, resolve }) => {
     isFilteredDocument(documentUrl);
   const serve =
     !building && !dev && needsDatabase
-      ? () => withDatabaseAvailability(event.platform, render)
+      ? () => {
+          if (event.platform) event.platform = searchRequestPlatform(event.platform);
+          return withDatabaseAvailability(event.platform, render);
+        }
       : render;
   const response = await (!building && !dev && (requested || isDocument(path))
     ? cachedResponse(event, serve, format)

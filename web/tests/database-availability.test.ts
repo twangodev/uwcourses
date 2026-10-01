@@ -1,8 +1,13 @@
 import { expect, it, vi } from "vitest";
 import publishedStatus from "../../.site/import/status.json";
-const { read } = vi.hoisted(() => ({ read: vi.fn() }));
+const { read, databaseSpy } = vi.hoisted(() => ({
+  read: vi.fn(),
+  databaseSpy: vi.fn(),
+}));
 vi.mock("../../src/lib/server/database", () => ({
-  database: () => ({ select: () => ({ from: () => ({ where: read }) }) }),
+  database: databaseSpy.mockImplementation(() => ({
+    select: () => ({ from: () => ({ where: read }) }),
+  })),
 }));
 import { withDatabaseAvailability } from "../../src/lib/server/database-availability";
 const ready = [
@@ -59,5 +64,26 @@ it("rejects mixed results even if an import completes with the same projection",
   read.mockReset().mockResolvedValue(next).mockResolvedValueOnce(ready);
   await expect(
     withDatabaseAvailability(undefined, async () => "mixed results"),
+  ).rejects.toMatchObject({ status: 503 });
+});
+
+it("anchors readiness through the request session and checks completion on primary", async () => {
+  read.mockReset().mockResolvedValue(ready);
+  databaseSpy.mockClear();
+  await withDatabaseAvailability(undefined, async () => "results");
+  expect(databaseSpy.mock.calls.map(([, primary]) => primary)).toEqual([
+    false,
+    true,
+  ]);
+});
+it("rejects a changed serving token when a query fails during replacement", async () => {
+  const next = ready.map((row) =>
+    row.key === "serving" ? { ...row, value: "b".repeat(32) } : row,
+  );
+  read.mockReset().mockResolvedValue(next).mockResolvedValueOnce(ready);
+  await expect(
+    withDatabaseAvailability(undefined, async () => {
+      throw new Error("query failed");
+    }),
   ).rejects.toMatchObject({ status: 503 });
 });

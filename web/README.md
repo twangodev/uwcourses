@@ -152,3 +152,24 @@ Search, facet, and suggestion API responses use a five-minute release-addressed
 edge cache. Facet keys omit pagination and sorting and normalize token order;
 search and suggestion keys preserve echoed filter values. Errors and credentialed
 requests bypass shared caching. Browser caching remains one minute.
+
+### Typed D1 Sessions rollout
+
+`D1_READ_MODE=primary` is the default. Set it to `session` to create a fresh
+`first-primary` session on each uncached database request. The readiness check
+anchors that session; the completion check always reads the primary and rejects
+changed serving tokens. Sessions and bookmarks are never shared between users or
+included in API cache entries. The Drizzle adapter supplies a typed binding
+contract without casting sessions to databases; unsupported driver operations fail.
+`bun run check` includes positive and negative database type contracts.
+
+Enable [D1 read replication](https://developers.cloudflare.com/d1/best-practices/read-replication/)
+in the database's Cloudflare settings before evaluating replica latency. Sessions
+provide sequential consistency, not snapshot isolation, so retain both import
+checks. Set `D1_QUERY_LOGS=1` temporarily to log query families, rows read, SQL
+duration, returned rows, serving region, and primary/replica routing. `wall_ms`
+is the entire batch round trip; do not sum it across the batch's statements.
+Logs exclude SQL text, filter values, and bookmarks. Compare cache misses across
+regions and use Worker request metrics for end-to-end p50/p95 latency; use D1
+query metrics for scans and SQL duration. Return to `primary` if the pilot does
+not improve latency. These changes do not enable remote replication or deploy.

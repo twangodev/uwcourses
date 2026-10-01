@@ -9,7 +9,7 @@
     "dev:host": "vite dev --host 0.0.0.0",
     "build": "NODE_OPTIONS=--max-old-space-size=6144 vite build",
     "preview": "wrangler dev",
-    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
+    "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json && node web/typecheck-search.mjs",
     "test": "vitest run",
     "test:browser:setup": "tsx -e \"import setup from './web/tests/browser/setup.ts'; setup()\"",
     "seo:check": "python3 web/seo_audit.py",

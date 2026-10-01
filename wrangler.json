@@ -27,5 +27,9 @@
       "database_name": "uwcourses",
       "database_id": "acb149f1-0a7e-454e-bb38-69f0de086ba2"
     }
-  ]
+  ],
+  "vars": {
+    "D1_READ_MODE": "primary",
+    "D1_QUERY_LOGS": "0"
+  }
 }

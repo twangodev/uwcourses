@@ -9,10 +9,10 @@ export async function withDatabaseAvailability<T>(
   platform: App.Platform | undefined,
   render: () => Promise<T>,
 ) {
-  const check = async () => {
+  const check = async (primary = false) => {
     let token: string | undefined;
     try {
-      const rows = await database(platform)
+      const rows = await database(platform, primary)
         .select()
         .from(metadata)
         .where(inArray(metadata.key, ["ready", "status", "serving"]));
@@ -34,11 +34,12 @@ export async function withDatabaseAvailability<T>(
   try {
     const response = await render();
     // Do not return a result if an import started during its queries.
-    if ((await check()) !== token)
+    if ((await check(true)) !== token)
       error(503, "Search was updated during this request. Please try again.");
     return response;
   } catch (cause) {
-    await check();
+    if ((await check(true)) !== token)
+      error(503, "Search was updated during this request. Please try again.");
     throw cause;
   }
 }
