@@ -17,7 +17,7 @@ export function courseTagScope(
   const subjectFilter = subjects.length
     ? ` WHERE EXISTS(SELECT 1 FROM subjects s WHERE s.uid=c.uid AND s.subject IN (${subjects.map(() => "?").join(",")}))`
     : "";
-  ctes.push(`tag_candidates AS (SELECT c.uid FROM courses c${subjectFilter})`);
+  ctes.push(`tag_candidates AS MATERIALIZED (SELECT c.uid FROM courses c${subjectFilter})`);
   values.push(...subjects);
 
   if (

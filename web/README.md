@@ -139,3 +139,10 @@ Public GET documents are cached for 24 hours in Cloudflare's Cache API. Keys inc
 Canonical page loaders and public representations share generated documents. Course comparisons are computed during data preparation and also emitted as compact assets for search badges. Historical instructor profiles are grouped into 4,096 deterministic buckets to bound the file count. `bun run site:data` generates these assets using the shared typed data readers. `bun run site:social` renders social cards; `bun run build` compiles the app and assembles their completed outputs. Rerun the relevant preparation command when its data or generator changes. HTML remains SSR and term controls remain interactive.
 
 Drizzle owns interactive database reads; the Python importer owns the read-model schema and ordered SQL import. Complex FTS and grade aggregations use bound SQL through Drizzle on D1. Development reads the imported local SQLite database.
+
+## Search performance
+
+Run `node --import tsx web/benchmark-search.ts` against the prepared dataset. Add
+`--explain` to include query plans. Reports include result fingerprints and median
+local SQLite execution times; they exclude D1 network latency and result-card work.
+Compare the same dataset and result fingerprints before interpreting speed changes.
