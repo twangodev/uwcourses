@@ -1,12 +1,6 @@
-export const tagThresholds = {
-  smallLecture: 30,
-  largeLecture: 100,
-  letterGrades: 30,
-  benchmarkCourses: 10,
-  gradeDifference: 0.2,
-  quality: 4,
-  qualityRatings: 10,
-} as const;
+import policy from "./search-policy.json";
+
+export const tagThresholds = policy.tagThresholds;
 
 export const courseTagValues = [
   "small-lectures",

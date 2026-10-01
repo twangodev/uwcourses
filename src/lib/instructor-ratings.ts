@@ -1,6 +1,7 @@
 // The prior has the weight of 20 valid quality ratings. It is a transparent
 // smoothing choice, not a minimum review requirement or a confidence interval.
-export const ratingPriorWeight = 20;
+import policy from "./search-policy.json";
+export const ratingPriorWeight = policy.ratingPriorWeight;
 export function bayesianRating(
   mean: number | null | undefined,
   count: number,

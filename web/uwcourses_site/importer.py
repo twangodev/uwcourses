@@ -13,11 +13,12 @@ import sqlite3
 import pyarrow.parquet as pq
 from .instructor_stats import attach_ratings
 from .discovery import build_discovery
+from .search_projection import build_search_projection, TABLES as SEARCH_TABLES, POLICY_PATH
 from .campus import CampusSchedule
 
 ROOT = Path.cwd()
 REPO = "twangodev/uwcourses"
-IMPORTER_VERSION = "7"
+IMPORTER_VERSION = "8"
 GRADES = ["a", "ab", "b", "bc", "c", "d", "f"]
 WEIGHTS = [4, 3.5, 3, 2.5, 2, 1, 0]
 MAX_CHUNK = 1024 * 1024
@@ -411,7 +412,9 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
             },
         )
     build_discovery(db, rows(source, "rmp_reviews"), rows(source, "meetings_current"))
+    search_projection = build_search_projection(db)
     status = {
+        "search_projection": search_projection,
         "revision": revision,
         "repository": REPO,
         "schema_version": 6,
@@ -422,6 +425,8 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
             + Path(__file__).with_name("schema-v6.json").read_bytes()
             + Path(__file__).with_name("discovery.py").read_bytes()
             + Path(__file__).with_name("campus.py").read_bytes()
+            + Path(__file__).with_name("search_projection.py").read_bytes()
+            + POLICY_PATH.read_bytes()
         ).hexdigest(),
         "observed_at": manifest["observed_at"],
         "built_at": datetime.now(timezone.utc).isoformat(),
@@ -484,6 +489,7 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
             "course_seasons",
             "requisite_kinds",
             "course_designations",
+            *SEARCH_TABLES,
         ]:
             f.write(f"DROP TABLE IF EXISTS {table};\n")
         for (sql,) in db.execute(
@@ -533,6 +539,7 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
             "SELECT sql FROM sqlite_master WHERE type='index' AND sql IS NOT NULL AND name NOT LIKE 'search%'"
         ):
             f.write(sql + ";\n")
+        f.write("PRAGMA optimize;\n")
         f.write("INSERT INTO metadata VALUES('ready','true');\n")
     db.close()
     print(encode(status), flush=True)

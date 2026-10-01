@@ -29,6 +29,7 @@ export interface CourseCard {
   };
 }
 export interface Status {
+  search_projection?: { version: number; terms: string[] };
   site_commit?: string | null;
   deployed_at?: string | null;
   revision: string;
