@@ -1,5 +1,5 @@
 import publishedStatus from "../../../.site/import/status.json";
-import { database, localDatabase } from "./database";
+import { database, localDatabase, sqlValues } from "./database";
 import { courses, instructors } from "./schema";
 import { eq, sql as drizzleSql } from "drizzle-orm";
 import { withInstructorUrls } from "./instructor-urls";
@@ -21,7 +21,7 @@ export async function query<T = any>(
   values: unknown[] = [],
 ): Promise<T[]> {
   if (building || dev)
-    return (await localDatabase()).prepare(statement).all(...values) as T[];
+    return (await localDatabase()).prepare(statement).all(...sqlValues(values)) as T[];
   // All SQL templates are internal; values remain parameters in Drizzle/D1.
   const parts = statement.split("?");
   if (parts.length !== values.length + 1)
