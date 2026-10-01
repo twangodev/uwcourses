@@ -98,9 +98,9 @@
                 historical GPA · <AnimatedNumber value={d.history.count} /> grades
               </p>
               <small class="text-muted text-[11px]"
-                >{termName(d.history.firstTerm)}–{termName(
+                >{#if d.history.firstTerm && d.history.lastTerm}{termName(d.history.firstTerm)}–{termName(
                   d.history.lastTerm,
-                )}{d.history.count < 100 ? " · limited sample" : ""}</small
+                )}{/if}{d.history.count < 100 ? " · limited sample" : ""}</small
               >
             </div>{:else}<p class="muted">No recorded grade history</p>{/if}
         </div>

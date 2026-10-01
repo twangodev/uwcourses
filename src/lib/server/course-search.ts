@@ -25,6 +25,7 @@ export function courseSearchScope(
     tags?: readonly CourseTag[];
     ratingPrior?: number | null;
     allTagSubjects?: boolean;
+    projection?: { available: boolean; window: boolean };
   } = {},
 ) {
   if (ranking && !isCourseCollection(ranking))
@@ -34,13 +35,15 @@ export function courseSearchScope(
   const totals = "SUM(a+ab+b+bc+c+d+f)";
   const ctes = history
     ? [
-        `history AS (SELECT uid,${totals} grade_count,SUM(a*4+ab*3.5+b*3+bc*2.5+c*2+d)*1.0/NULLIF(${totals},0) history_gpa FROM grade_summaries WHERE term<=? AND CAST(term AS INTEGER)>? GROUP BY uid)`,
+        highlights.projection?.window
+          ? "history AS (SELECT uid,grade_count,history_gpa FROM grade_windows WHERE term=?)"
+          : `history AS (SELECT uid,${totals} grade_count,SUM(a*4+ab*3.5+b*3+bc*2.5+c*2+d)*1.0/NULLIF(${totals},0) history_gpa FROM grade_summaries WHERE term<=? AND CAST(term AS INTEGER)>? GROUP BY uid)`,
       ]
     : [];
   let from =
     "courses c" + (history ? " LEFT JOIN history h ON h.uid=c.uid" : "");
   const values: unknown[] = history
-    ? [query.term, Number(query.term) - 50]
+    ? highlights.projection?.window ? [query.term] : [query.term, Number(query.term) - 50]
     : [];
   const tags = [...new Set([...query.tags, ...(highlights.tags ?? [])])];
   if (tags.length) {
@@ -49,6 +52,7 @@ export function courseSearchScope(
       tags,
       highlights.ratingPrior ?? null,
       highlights.allTagSubjects,
+      highlights.projection?.available,
     );
     ctes.push(...scope.ctes);
     values.push(...scope.values);

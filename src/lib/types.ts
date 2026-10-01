@@ -43,19 +43,8 @@ export interface Status {
   departments: { subject: string; count: number }[];
   designations?: { family: string; value: string; label: string }[];
 }
-export interface Citation {
-  type: string;
-  source_url?: string;
-  source_review_id?: string;
-  instructor_name?: string;
-  review_date?: string;
-  term_id?: string;
-  [key: string]: unknown;
-}
-export interface Claim {
-  text: string;
-  citations?: Citation[];
-}
+export type Citation = import("zod").infer<typeof import("./api/schemas").citationSchema>;
+export type Claim = import("zod").infer<typeof import("./api/schemas").claimSchema>;
 export interface RequirementNode {
   id: string;
   kind: string;

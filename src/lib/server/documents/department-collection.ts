@@ -1,6 +1,6 @@
 import type { DocumentContext } from "./types";
 import { error } from "@sveltejs/kit";
-import { search, query } from "$lib/server/data";
+import { searchCourses as search, query } from "$lib/server/data";
 import {
   courseCollections,
   type CourseCollection,

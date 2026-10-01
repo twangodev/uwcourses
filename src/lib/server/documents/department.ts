@@ -1,7 +1,7 @@
 import type { DocumentContext } from "./types";
 import { building } from "$lib/server/runtime";
 import { error, redirect } from "@sveltejs/kit";
-import { query, search } from "$lib/server/data";
+import { query, searchCourses as search } from "$lib/server/data";
 import { departmentStats } from "$lib/server/departments";
 import entriesData from "../../../../.site/import/entries.json";
 

@@ -27,6 +27,7 @@ import {
   parseCourseFilters,
   type CourseQuery,
 } from "./course-query";
+import { searchProjection } from "./search-projection";
 import { courseSearchScope } from "./course-search";
 import { query, status } from "./data";
 
@@ -102,9 +103,10 @@ async function aggregate(
     url.searchParams.get("ranking"),
     id === "gpa" || own?.history,
     {
+      projection: searchProjection(context.term),
       tags: id === "tags" ? courseTagValues : undefined,
       ratingPrior:
-        id === "tags" || context.tags.includes("rated-teacher")
+        !searchProjection(context.term).available && (id === "tags" || context.tags.includes("rated-teacher"))
           ? await instructorRatingPrior(platform)
           : null,
     },
@@ -207,9 +209,10 @@ async function departmentTagDistribution(
     url.searchParams.get("ranking"),
     false,
     {
+      projection: searchProjection(context.term),
       tags: context.tags,
       allTagSubjects: true,
-      ratingPrior: context.tags.includes("rated-teacher")
+      ratingPrior: !searchProjection(context.term).available && context.tags.includes("rated-teacher")
         ? await instructorRatingPrior(platform)
         : null,
     },

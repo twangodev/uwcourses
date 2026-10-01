@@ -1,5 +1,5 @@
 import type { DocumentContext } from "./types";
-import { search } from "$lib/server/data";
+import { searchCourses as search } from "$lib/server/data";
 import {
   courseCollections,
   type CourseCollection,

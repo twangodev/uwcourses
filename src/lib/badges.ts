@@ -12,10 +12,10 @@ export interface Badge {
 }
 export interface BadgeRatings {
   bayesian_quality?: number | null;
-  quality_count?: number;
+  quality_count?: number | null;
   difficulty?: number | null;
-  difficulty_count?: number;
-  source_url?: string;
+  difficulty_count?: number | null;
+  source_url?: string | null;
 }
 const valid = (value: unknown): value is number => typeof value === 'number' && Number.isFinite(value);
 export function instructorBadges(ratings?: BadgeRatings | null): Badge[] {

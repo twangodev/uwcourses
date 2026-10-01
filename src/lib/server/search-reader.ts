@@ -59,7 +59,7 @@ export async function searchRead<S extends z.ZodType>(platform: App.Platform | u
 }
 
 /** Collect independent reads submitted in the same turn into native D1 batches. */
-export function searchReadQueue(platform?: App.Platform) {
+export function searchReadQueue(platform?: App.Platform, family = "facets") {
   let pending: { statement: Statement; resolve: (rows: unknown[]) => void; reject: (cause: unknown) => void }[] = [];
   let scheduled = false;
   const flush = async () => {
@@ -73,7 +73,7 @@ export function searchReadQueue(platform?: App.Platform) {
   };
   return async <S extends z.ZodType>(schema: S, sql: string, values: readonly unknown[] = []): Promise<z.output<S>[]> => {
     const rows = await new Promise<unknown[]>((resolve, reject) => {
-      pending.push({ statement: { sql, values, family: "facets" }, resolve, reject });
+      pending.push({ statement: { sql, values, family }, resolve, reject });
       if (!scheduled) { scheduled = true; queueMicrotask(flush); }
     });
     return schema.array().parse(rows);

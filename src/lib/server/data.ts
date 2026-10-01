@@ -1,3 +1,6 @@
+import { z } from "zod";
+import { searchReadQueue, searchRead } from "./search-reader";
+import { countRow, courseResultRow, instructorResultRow } from "./search-rows";
 import publishedStatus from "../../../.site/import/status.json";
 import { database, localDatabase, sqlValues } from "./database";
 import { courses, instructors } from "./schema";
@@ -10,8 +13,9 @@ import {
 import { ratingPriorWeight } from "$lib/instructor-ratings";
 import { building, dev } from "$lib/server/runtime";
 import { error } from "@sveltejs/kit";
-import { coursePreviews } from "./discovery";
+import { coursePreviews, type PreviewCard } from "./discovery";
 import { parseCourseFilters } from "./course-query";
+import { searchProjection } from "./search-projection";
 import { courseSearchScope, searchExpression } from "./course-search";
 import type { Status } from "$lib/types";
 /** Existing FTS and aggregation queries retain bound parameters. */
@@ -73,11 +77,18 @@ export function pageNumber(url: URL) {
   if (!Number.isInteger(n) || n < 1 || n > 10000) error(400, "Invalid page");
   return n;
 }
+type SearchResponse<T, K extends "course" | "instructor"> = {
+  items: T[]; kind: K; total: number; page: number; q: string; term: string;
+  availability: string; instructor_name: string | null; filters: Record<string, string>;
+};
+type InstructorResult = z.output<typeof instructorResultRow> & { instructor_url?: string };
+export function search(url: URL, platform?: App.Platform, suggestions?: false): Promise<SearchResponse<PreviewCard, "course"> | SearchResponse<InstructorResult, "instructor">>;
+export function search(url: URL, platform: App.Platform | undefined, suggestions: true): Promise<SearchResponse<z.output<typeof courseResultRow>, "course"> | SearchResponse<InstructorResult, "instructor">>;
 export async function search(
   url: URL,
   platform?: App.Platform,
   suggestions = false,
-) {
+): Promise<SearchResponse<PreviewCard | z.output<typeof courseResultRow>, "course"> | SearchResponse<InstructorResult, "instructor">> {
   const q = (url.searchParams.get("q") || "").trim();
   if (q.length > 200) error(400, "Query is too long");
   const kind =
@@ -109,7 +120,8 @@ export async function search(
       ranking,
       url.searchParams.get("sort") === "gpa",
       {
-        ratingPrior: courseQuery.tags.includes("rated-teacher")
+        projection: searchProjection(term),
+        ratingPrior: !searchProjection(term).available && courseQuery.tags.includes("rated-teacher")
           ? await instructorRatingPrior(platform)
           : null,
       },
@@ -145,50 +157,42 @@ export async function search(
     kind === "course"
       ? "c.uid course_uid,c.code course_id,c.title,c.credits_min,c.credits_max,c.gpa"
       : `c.uid instructor_uid,c.name,c.current,${adjustedQuality} bayesian_quality,${qualityCount} quality_count,json_extract(c.payload,'$.ratings.difficulty') difficulty,json_extract(c.payload,'$.ratings.difficulty_count') difficulty_count,json_extract(c.payload,'$.ratings.source_url') source_url`;
-  const [count] = suggestions
-    ? [{ total: 0 }]
-    : await query(
-        platform,
-        `${prefix}SELECT count(DISTINCT c.uid) total FROM ${from} WHERE ${where}`,
-        values,
-      );
-  const items = await query(
-    platform,
-    `${prefix}SELECT ${fields} FROM ${from} WHERE ${where} GROUP BY c.uid ORDER BY ${order} LIMIT ? OFFSET ?`,
-    [...values, suggestions ? 6 : 30, suggestions ? 0 : (page - 1) * 30],
-  );
-  return {
-    items:
-      kind === "course"
-        ? suggestions
-          ? items
-          : await coursePreviews(
-              items,
-              term,
-              platform,
-              courseQuery?.instructor,
-              courseQuery?.subjects.length === 1
-                ? courseQuery.subjects[0]
-                : "school",
-              courseQuery?.tags,
-            )
-        : await withInstructorUrls(items, platform),
+  const read = searchReadQueue(platform, "search");
+  const [[count], rows] = await Promise.all([
+    suggestions ? Promise.resolve([{ total: 0 }]) : read(countRow,
+      `${prefix}SELECT count(DISTINCT c.uid) total FROM ${from} WHERE ${where}`, values),
+    read(z.unknown(), `${prefix}SELECT ${fields} FROM ${from} WHERE ${where} GROUP BY c.uid ORDER BY ${order} LIMIT ? OFFSET ?`,
+      [...values, suggestions ? 6 : 30, suggestions ? 0 : (page - 1) * 30]),
+  ]);
+  const response = {
     total: count.total,
     page,
-    kind,
     q,
     term,
     availability,
     instructor_name: courseQuery?.instructor
       ? ((
-          await query(platform, "SELECT name FROM instructors WHERE uid=?", [
+          await searchRead(platform, z.object({ name: z.string().nullable() }), "SELECT name FROM instructors WHERE uid=?", [
             courseQuery.instructor,
           ])
         )[0]?.name ?? null)
       : null,
     filters: Object.fromEntries(url.searchParams),
   };
+  if (kind === "course") {
+    const cards = courseResultRow.array().parse(rows);
+    return { ...response, kind: "course" as const, items: suggestions ? cards : await coursePreviews(cards, term, platform,
+      courseQuery?.instructor, courseQuery?.subjects.length === 1 ? courseQuery.subjects[0] : "school", courseQuery?.tags) };
+  }
+  return { ...response, kind: "instructor" as const, items: await withInstructorUrls(instructorResultRow.array().parse(rows), platform) };
 }
+
+export async function searchCourses(url: URL, platform?: App.Platform) {
+  const results = await search(url, platform);
+  if (results.kind !== "course") throw new Error("Expected course search");
+  return results;
+}
+
 export async function gradeRows(
   uid: string,
   url: URL,
