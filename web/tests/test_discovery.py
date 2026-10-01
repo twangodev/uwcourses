@@ -202,6 +202,20 @@ class DiscoveryFactTests(unittest.TestCase):
             "SELECT term,section_type,section_number,weekday,start_minute FROM class_meetings"
         ).fetchall()
         self.assertEqual(rows, [("1272", "LEC", "003", 1, 11 * 60)])
+        plan = db.execute(
+            "EXPLAIN QUERY PLAN SELECT uid FROM courses c WHERE EXISTS "
+            "(SELECT 1 FROM class_meetings cm "
+            "WHERE cm.uid=c.uid AND cm.term=? AND cm.weekday IN (?))",
+            ("1272", 1),
+        ).fetchall()
+        self.assertTrue(
+            any(
+                "class_meetings_course_lookup (uid=? AND term=? AND weekday=?)"
+                in row[3]
+                for row in plan
+            ),
+            plan,
+        )
         self.assertEqual(
             db.execute("SELECT season FROM course_seasons ORDER BY season").fetchall(),
             [("fall",), ("spring",)],

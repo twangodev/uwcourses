@@ -45,6 +45,7 @@ def build_discovery(db, reviews, meetings=None):
     CREATE INDEX offerings_term ON offerings(term,uid);
     CREATE INDEX section_modes_lookup ON section_modes(term,mode,uid);
     CREATE INDEX class_meetings_lookup ON class_meetings(term,weekday,start_minute,uid);
+    CREATE INDEX class_meetings_course_lookup ON class_meetings(uid,term,weekday,start_minute);
     CREATE INDEX course_seasons_lookup ON course_seasons(season,uid);
     CREATE INDEX course_designations_lookup ON course_designations(family,value,uid);
     """)
