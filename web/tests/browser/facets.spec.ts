@@ -565,6 +565,7 @@ test("histogram tooltips expose matching and available counts to keyboard users"
 test("bars interpolate between results and stop animating with reduced motion", async ({
   page,
 }) => {
+  await page.clock.install({ time: new Date("2026-10-01T12:00:00Z") });
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.route("**/api/facets?*", async (route) => {
     const query = new URL(route.request().url()).searchParams;
@@ -595,40 +596,35 @@ test("bars interpolate between results and stop animating with reduced motion", 
   const selector = '.histogram rect[fill="var(--accent)"][data-value="2.5"]';
   const bar = page.locator(selector);
   await expect(bar).toHaveAttribute("height", "65");
-  const sample = (duration: number) =>
-    page.evaluate(
-      async ({ selector, duration }) => {
-        const values: number[] = [];
-        const start = performance.now();
-        await new Promise<void>((resolve) => {
-          function frame() {
-            values.push(
-              Number(document.querySelector(selector)?.getAttribute("height")),
-            );
-            if (performance.now() - start < duration)
-              requestAnimationFrame(frame);
-            else resolve();
-          }
-          requestAnimationFrame(frame);
-        });
-        return values;
-      },
-      { selector, duration },
-    );
+  await page.clock.pauseAt(new Date("2026-10-01T12:01:00Z"));
+  const sample = async (target: number) => {
+    const heights: number[] = [];
+    await expect
+      .poll(
+        async () => {
+          await page.clock.runFor(40);
+          const height = Number(await bar.getAttribute("height"));
+          heights.push(height);
+          return height;
+        },
+        { intervals: [10] },
+      )
+      .toBe(target);
+    return heights;
+  };
   const input = page.getByRole("spinbutton", {
     name: "Historical GPA at least",
   });
-  const moving = sample(800);
   await input.fill("3");
-  const frames = await moving;
+  const frames = await sample(0);
+  expect(frames.some((height) => height > 0 && height < 65)).toBe(true);
   expect(
-    new Set(frames.filter((height) => height > 0 && height < 65)).size,
-  ).toBeGreaterThan(3);
+    frames.every((height, index) => index === 0 || height <= frames[index - 1]),
+  ).toBe(true);
   await expect(bar).toHaveAttribute("height", "0");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  const still = sample(600);
   await input.fill("");
-  const reducedFrames = await still;
+  const reducedFrames = await sample(65);
   expect(reducedFrames.every((height) => height === 0 || height === 65)).toBe(
     true,
   );
