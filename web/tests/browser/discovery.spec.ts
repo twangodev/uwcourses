@@ -202,8 +202,54 @@ test("department names appear in search, headings and SEO metadata", async ({
   ).toBe(true);
 });
 
+test("rapid filter changes replace a pending navigation without losing filters", async ({
+  page,
+}) => {
+  let releasePrevious: () => void = () => {};
+  let markHeld: () => void = () => {};
+  const previousHeld = new Promise<void>((resolve) => {
+    markHeld = resolve;
+  });
+  const release = new Promise<void>((resolve) => {
+    releasePrevious = resolve;
+  });
+  let held = false;
+  await page.route("**/search/__data.json?*", async (route) => {
+    const query = new URL(route.request().url()).searchParams;
+    if (!held && query.get("mode") === "in_person" && !query.has("gpa_min")) {
+      held = true;
+      markHeld();
+      await release;
+    }
+    await route.continue();
+  });
+  try {
+    await page.goto("/search?subject=COMPSCI&availability=all");
+    await expect(page.locator("html")).toHaveAttribute("data-hydrated", "true");
+    const finder = page.getByRole("region", { name: "Find courses" });
+    await finder.getByRole("button", { name: "Schedule", exact: true }).click();
+    await finder
+      .getByRole("button", { name: "In person", exact: true })
+      .click();
+    await previousHeld;
+    await finder.getByRole("button", { name: "Grades", exact: true }).click();
+    await finder
+      .getByRole("button", { name: "At least 3", exact: true })
+      .click();
+    await expect(page).toHaveURL(/gpa_min=3/);
+    await expect(page).toHaveURL(/mode=in_person/);
+    await expect(page).toHaveURL(/subject=COMPSCI/);
+    await expect(
+      finder.getByText("Couldn’t update the results. Please try again."),
+    ).toHaveCount(0);
+  } finally {
+    releasePrevious();
+  }
+});
+
 test("course filters combine on search, departments, and collections", async ({
   page,
+  request,
 }) => {
   test.setTimeout(60000);
   await page.goto("/search");
@@ -238,10 +284,12 @@ test("course filters combine on search, departments, and collections", async ({
   await expect(page.locator("html")).toHaveAttribute("data-hydrated", "true");
   await finder.getByRole("button", { name: "Schedule", exact: true }).click();
   await finder.getByRole("button", { name: "Mon", exact: true }).click();
+  await expect(page).toHaveURL(/days=mon/);
   await finder.getByRole("button", { name: "Day match", exact: true }).click();
   await page
     .getByRole("option", { name: "At least one selected day", exact: true })
     .click();
+  await expect(page).toHaveURL(/days_match=any/);
   await finder
     .getByRole("button", { name: "Course details", exact: true })
     .click();
@@ -251,6 +299,13 @@ test("course filters combine on search, departments, and collections", async ({
   await expect(page).toHaveURL(/days=mon/);
   await expect(page).toHaveURL(/days_match=any/);
   await expect(page).toHaveURL(/requisites=none/);
+  const filtered = await request.get(
+    "/api/search?subject=COMPSCI&days=mon&days_match=any&requisites=none",
+  );
+  expect(filtered.ok()).toBe(true);
+  await expect(finder.locator(".results-heading strong")).toHaveText(
+    (await filtered.json()).total.toLocaleString(),
+  );
   await page.getByRole("button", { name: "Term", exact: true }).click();
   await page.getByRole("option", { name: "Spring 2026", exact: true }).click();
   await expect(page).toHaveURL(/term=1264/);

@@ -14,9 +14,11 @@ export function instructorBucket(path: string) {
 }
 export function documentAsset(path: string) {
   if (path.startsWith("/stats?")) {
-    const term = new URL(path,"https://uwcourses.com").searchParams.get("term");
+    const term = new URL(path, "https://uwcourses.com").searchParams.get(
+      "term",
+    );
     if (term !== null) {
-      if (!/^1\d{2}[246]$/.test(term)) error(400,"Unknown statistics term");
+      if (!/^1\d{2}[246]$/.test(term)) error(400, "Unknown statistics term");
       return `/__documents/statistics/${term}.json`;
     }
     return "/__documents/pages/stats.json";
@@ -41,7 +43,11 @@ export async function readAsset<T>(
 export function isFilteredDocument(url: URL) {
   return (
     (url.pathname === "/search" ||
-      url.pathname === "/instructors/by-rating-count") &&
+      url.pathname === "/instructors/by-rating-count" ||
+      /^\/departments\/[^/]+(?:\/(?:easiest|hardest))?\/?$/.test(
+        url.pathname,
+      ) ||
+      /^\/courses\/(?:easiest|hardest)\/?$/.test(url.pathname)) &&
     url.searchParams.size > 0
   );
 }
@@ -68,10 +74,19 @@ export async function readDocument(
     : (stored as PublicDocument | null);
   if (document) {
     if (path === "/stats" && "schoolStats" in document.data)
-      return { ...document, url: new URL(path + url.search, "https://uwcourses.com").href, data: { schoolStats: selectStatsTerm(schoolStatsSchema.parse(document.data.schoolStats), url) } };
+      return {
+        ...document,
+        url: new URL(path + url.search, "https://uwcourses.com").href,
+        data: {
+          schoolStats: selectStatsTerm(
+            schoolStatsSchema.parse(document.data.schoolStats),
+            url,
+          ),
+        },
+      };
     return document;
   }
-  if (path === "/stats") error(400,"Unknown statistics term");
+  if (path === "/stats") error(400, "Unknown statistics term");
   // Aliases only need the small routing index on a miss; normal pages read one asset.
   const routes = await readAsset<{
     courses: Record<string, string>;

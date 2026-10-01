@@ -2,6 +2,50 @@ import type { DepartmentStatistics } from "$lib/view-models";
 import { building, dev } from "$lib/server/runtime";
 import { query } from "./data";
 import { gradeKeys, gradeSummary } from "$lib/discovery";
+import { z } from "zod";
+import { error } from "@sveltejs/kit";
+import { documentAsset, readAsset } from "./documents/storage";
+const gradeFields = {
+  counts: z.array(z.number()).length(7),
+  count: z.number(),
+  gpa: z.number().nullable(),
+  topShare: z.number().nullable(),
+  firstTerm: z.string().optional(),
+  lastTerm: z.string().optional(),
+};
+const restoreTerms = <T extends { firstTerm?: string; lastTerm?: string }>(
+  row: T,
+) => ({
+  ...row,
+  firstTerm: row.firstTerm,
+  lastTerm: row.lastTerm,
+});
+const summarySchema = z.object(gradeFields).transform(restoreTerms);
+const termSchema = z
+  .object({
+    ...gradeFields,
+    university: summarySchema,
+    courses: z.number().nullable(),
+    instructors: z.number(),
+    levels: z.array(
+      z
+        .object({
+          ...gradeFields,
+          level: z.string(),
+          university: summarySchema,
+        })
+        .transform(restoreTerms),
+    ),
+  })
+  .transform(restoreTerms);
+const publishedStatisticsSchema = z.object({
+  data: z.object({
+    stats: z.object({
+      all: termSchema,
+      terms: z.record(z.string(), termSchema),
+    }),
+  }),
+});
 let cached: Promise<any[]> | undefined;
 const sums = gradeKeys.map((key) => `SUM(g.${key}) ${key}`).join(",");
 const aggregateSql = `SELECT g.term,c.number/100*100 number,${sums} FROM grade_summaries g JOIN course_numbers c ON c.uid=g.uid`;
@@ -14,6 +58,14 @@ export async function departmentStats(
   subject: string,
   platform?: App.Platform,
 ): Promise<DepartmentStatistics> {
+  if (!building && !dev) {
+    const document = await readAsset<unknown>(
+      documentAsset(`/departments/${encodeURIComponent(subject)}`),
+      platform,
+    );
+    if (!document) error(503, "Published department statistics unavailable");
+    return publishedStatisticsSchema.parse(document).data.stats;
+  }
   const [catalogRows, own, offeringRows, teachingRows] = await Promise.all([
     catalog(platform),
     query(

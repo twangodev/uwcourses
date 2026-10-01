@@ -23,7 +23,7 @@ export async function department({ params, platform, url }: DocumentContext) {
     ).length
   )
     error(404, "Department not found");
-  const searchUrl = new URL("http://prerender/search");
+  const searchUrl = new URL(url);
   searchUrl.searchParams.set("subject", params.subject);
   searchUrl.searchParams.set("kind", "course");
   const [results, stats] = await Promise.all([

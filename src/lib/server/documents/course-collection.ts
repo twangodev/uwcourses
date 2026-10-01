@@ -4,8 +4,12 @@ import {
   courseCollections,
   type CourseCollection,
 } from "$lib/course-collections";
-export async function course_collection({ params, platform }: DocumentContext) {
-  const url = new URL("http://prerender/search");
+export async function course_collection({
+  params,
+  platform,
+  url: currentUrl,
+}: DocumentContext) {
+  const url = new URL(currentUrl);
   url.searchParams.set("ranking", params.collection);
   return {
     collection: params.collection,

@@ -9,6 +9,8 @@ import {
 import { pageDocument } from "../../src/lib/server/documents/page";
 
 import { courseContexts } from "../../src/lib/server/course-context";
+import { departmentStats } from "../../src/lib/server/departments";
+import { gradeSummary } from "../../src/lib/discovery";
 
 const document = {
   schema_version: 1,
@@ -31,8 +33,7 @@ function platform(files: Record<string, unknown>) {
     { ASSETS: { fetch } },
     {
       get(target, key) {
-        if (key === "DB")
-          throw new Error("Page attempted a database read");
+        if (key === "DB") throw new Error("Page attempted a database read");
         return Reflect.get(target, key);
       },
     },
@@ -47,6 +48,27 @@ const context = (path: string, env: App.Platform) => ({
 });
 
 describe("static page documents", () => {
+  it("reuses published department statistics without reading D1, including empty grade histories", async () => {
+    const summary = gradeSummary([]);
+    const stats = {
+      all: {
+        ...summary,
+        university: summary,
+        courses: null,
+        instructors: 0,
+        levels: [],
+      },
+      terms: {},
+    };
+    const { platform: env, fetch } = platform({
+      [documentAsset("/departments/ANAT%26PHY")]: { data: { stats } },
+    });
+    expect(await departmentStats("ANAT&PHY", env)).toEqual(stats);
+    expect(fetch).toHaveBeenCalledOnce();
+    await expect(departmentStats("MISSING", env)).rejects.toMatchObject({
+      status: 503,
+    });
+  });
   it("serves SSR and public data from the same generated document without querying D1", async () => {
     const { platform: env, fetch } = platform({
       [documentAsset("/courses/COMPSCI_300")]: document,
@@ -59,17 +81,25 @@ describe("static page documents", () => {
     expect(source).not.toHaveBeenCalled();
     expect(fetch).toHaveBeenCalledTimes(2);
   });
-  it("keeps query-dependent search live, including validation of invalid filters", async () => {
+  it.each([
+    "/search?q=java",
+    "/departments/COMPSCI?days=mon&days_match=any",
+    "/departments/COMPSCI?term=1264",
+    "/courses/easiest?credits_min=3",
+    "/courses/hardest?tags=small-lectures",
+    "/departments/COMPSCI/easiest?gpa_min=3",
+    "/departments/COMPSCI/hardest?mode=in_person",
+  ])("keeps filtered finder documents live at %s", async (path) => {
     const { platform: env, fetch } = platform({});
     const source = vi.fn(async () => ({ query: true }));
-    expect(await pageDocument(source)(context("/search?q=java", env))).toEqual({
+    expect(await pageDocument(source)(context(path, env))).toEqual({
       query: true,
     });
     expect(source).toHaveBeenCalledOnce();
     expect(fetch).not.toHaveBeenCalled();
-    expect(isFilteredDocument(new URL("https://uwcourses.com/search"))).toBe(
-      false,
-    );
+    const unfiltered = new URL(path, "https://uwcourses.com");
+    unfiltered.search = "";
+    expect(isFilteredDocument(unfiltered)).toBe(false);
   });
   it("selects only the requested instructor from a bucket", async () => {
     const path = "/instructors/HOBBES_LEGAULT";
@@ -150,16 +180,24 @@ describe("static page documents", () => {
 });
 
 it("resolves only the requested instructor URL shards and rating prior without D1", async () => {
-  const { withInstructorUrls, instructorUrlAsset } = await import("../../src/lib/server/instructor-urls");
-  const { instructorRatingPrior } = await import("../../src/lib/server/instructor-ratings");
+  const { withInstructorUrls, instructorUrlAsset } =
+    await import("../../src/lib/server/instructor-urls");
+  const { instructorRatingPrior } =
+    await import("../../src/lib/server/instructor-ratings");
   const uid = "instructor_example";
   const { platform: env, fetch } = platform({
-    [instructorUrlAsset(uid)]: {[uid]: "/instructors/EXAMPLE--instructor_example"},
-    "/__documents/search-metadata.json": {mean: 3.7},
+    [instructorUrlAsset(uid)]: {
+      [uid]: "/instructors/EXAMPLE--instructor_example",
+    },
+    "/__documents/search-metadata.json": { mean: 3.7 },
   });
-  const rows = await withInstructorUrls([{instructor_uid: uid}], env);
-  expect(rows[0].instructor_url).toBe("/instructors/EXAMPLE--instructor_example");
+  const rows = await withInstructorUrls([{ instructor_uid: uid }], env);
+  expect(rows[0].instructor_url).toBe(
+    "/instructors/EXAMPLE--instructor_example",
+  );
   expect(await instructorRatingPrior(env)).toBe(3.7);
   expect(fetch).toHaveBeenCalledTimes(2);
-  await expect(withInstructorUrls([{instructor_uid: "missing"}], env)).rejects.toMatchObject({status: 503});
+  await expect(
+    withInstructorUrls([{ instructor_uid: "missing" }], env),
+  ).rejects.toMatchObject({ status: 503 });
 });

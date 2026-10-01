@@ -31,7 +31,6 @@
     showHeading?: boolean;
   } = $props();
   let draft = $state<URLSearchParams | null>(null);
-  let navigation = Promise.resolve();
   let navigationError = $state("");
   let filters = $derived(
     draft ? Object.fromEntries(draft) : results.filters || {},
@@ -65,15 +64,14 @@
     draft = query;
     navigationError = "";
     const href = `${path}?${query}`;
-    navigation = navigation.then(async () => {
-      try {
-        await goto(href, { keepFocus: true, noScroll: true });
-      } catch {
-        navigationError = "Couldn’t update the results. Please try again.";
-      } finally {
+    void goto(href, { keepFocus: true, noScroll: true })
+      .catch(() => {
+        if (draft === query)
+          navigationError = "Couldn’t update the results. Please try again.";
+      })
+      .finally(() => {
         if (draft === query) draft = null;
-      }
-    });
+      });
   }
   function clear(keys: string[]) {
     change(Object.fromEntries(keys.map((key) => [key, ""])));

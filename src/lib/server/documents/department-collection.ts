@@ -6,7 +6,11 @@ import {
   type CourseCollection,
 } from "$lib/course-collections";
 import entriesData from "../../../../.site/import/entries.json";
-export async function department_collection({ params, platform }: DocumentContext) {
+export async function department_collection({
+  params,
+  platform,
+  url: currentUrl,
+}: DocumentContext) {
   if (
     !(
       await query(
@@ -17,7 +21,7 @@ export async function department_collection({ params, platform }: DocumentContex
     ).length
   )
     error(404, "Department not found");
-  const url = new URL("http://prerender/search");
+  const url = new URL(currentUrl);
   url.searchParams.set("ranking", params.collection);
   url.searchParams.set("subject", params.subject);
   return {

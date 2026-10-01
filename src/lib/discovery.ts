@@ -23,7 +23,7 @@ export function gradeSummary(
       ? counts.reduce((sum, n, i) => sum + n * gradeWeights[i], 0) / count
       : null,
     topShare: count ? ((counts[0] + counts[1]) / count) * 100 : null,
-    firstTerm: terms[0],
+    firstTerm: terms.at(0),
     lastTerm: terms.at(-1),
   };
 }
