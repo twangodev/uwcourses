@@ -205,11 +205,8 @@ test("department names appear in search, headings and SEO metadata", async ({
 test("rapid filter changes replace a pending navigation without losing filters", async ({
   page,
 }) => {
+  await page.emulateMedia({ reducedMotion: "reduce" });
   let releasePrevious: () => void = () => {};
-  let markHeld: () => void = () => {};
-  const previousHeld = new Promise<void>((resolve) => {
-    markHeld = resolve;
-  });
   const release = new Promise<void>((resolve) => {
     releasePrevious = resolve;
   });
@@ -218,7 +215,6 @@ test("rapid filter changes replace a pending navigation without losing filters",
     const query = new URL(route.request().url()).searchParams;
     if (!held && query.get("mode") === "in_person" && !query.has("gpa_min")) {
       held = true;
-      markHeld();
       await release;
     }
     await route.continue();
@@ -228,10 +224,14 @@ test("rapid filter changes replace a pending navigation without losing filters",
     await expect(page.locator("html")).toHaveAttribute("data-hydrated", "true");
     const finder = page.getByRole("region", { name: "Find courses" });
     await finder.getByRole("button", { name: "Schedule", exact: true }).click();
+    await expect(finder.locator(".panel-content")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
     await finder
       .getByRole("button", { name: "In person", exact: true })
       .click();
-    await previousHeld;
+    await expect.poll(() => held).toBe(true);
     await finder.getByRole("button", { name: "Grades", exact: true }).click();
     await finder
       .getByRole("button", { name: "At least 3", exact: true })
