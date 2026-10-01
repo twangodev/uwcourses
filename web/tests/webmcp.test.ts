@@ -46,6 +46,9 @@ describe("WebMCP course tools", () => {
       days: ["mon", "wed", "fri"],
       level: [700, 800, 900],
       gpa_min: 3,
+      gpa_max: 3.1,
+      gpa_max_exclusive: true,
+      tags: ["small-lectures", "higher-grades"],
     });
     const url = String(fetch.mock.calls[0][0]);
     expect(url).toContain("mode=in_person");
@@ -53,6 +56,12 @@ describe("WebMCP course tools", () => {
     expect(url).toContain("days=mon%2Cwed%2Cfri");
     expect(url).toContain("level=700%2C800%2C900");
     expect(url).toContain("gpa_min=3");
+    expect(url).toContain("gpa_max=3.1");
+    expect(url).toContain("gpa_max_exclusive=true");
+    expect(url).toContain("tags=small-lectures%2Chigher-grades");
+    await expect(execute("search_courses", { tags: ["easy"] })).rejects.toThrow(
+      /Invalid tool input/,
+    );
     await expect(execute("search_courses", { term: "fall" })).rejects.toThrow(
       /Invalid tool input/,
     );

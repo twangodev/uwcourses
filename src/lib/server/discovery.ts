@@ -1,3 +1,4 @@
+import type { CourseTag } from "$lib/course-tags";
 import { courseBadges } from "$lib/badges";
 import { courseContexts } from "./course-context";
 import { withInstructorUrls } from "./instructor-urls";
@@ -12,6 +13,7 @@ export async function coursePreviews(
   platform?: App.Platform,
   instructor?: string,
   scope = "school",
+  tags: readonly CourseTag[] = [],
 ) {
   if (!items.length) return [];
   if (items.length > 30) {
@@ -24,6 +26,7 @@ export async function coursePreviews(
           platform,
           instructor,
           scope,
+          tags,
         ),
       );
     return chunks.flat();
@@ -75,7 +78,7 @@ export async function coursePreviews(
       ?.summary?.find((row: any) => row.citations?.length);
     return {
       ...item,
-      badges: courseBadges({ course, context: contexts.get(item.course_uid), term, scope, instructors: rankedTeachers.filter(row => row.course_uid === item.course_uid).map(row => ({ name: row.name, instructor_url: row.instructor_url, terms: [{ term }], ratings: { bayesian_quality: row.quality, quality_count: row.quality_count } })) }),
+      badges: courseBadges({ course, context: contexts.get(item.course_uid), term, scope, instructors: rankedTeachers.filter(row => row.course_uid === item.course_uid).map(row => ({ name: row.name, instructor_url: row.instructor_url, terms: [{ term }], ratings: { bayesian_quality: row.quality, quality_count: row.quality_count } })) }).sort((a, b) => Number(tags.includes(b.tag!)) - Number(tags.includes(a.tag!))),
       description: course.llm_summary?.replace(`${course.course_id} ${course.title} `, "").replace(/^./, (letter: string) => letter.toUpperCase()) || null,
       discovery: {
         term,

@@ -21,8 +21,13 @@ const reply = (result: unknown, total_pages = 1) =>
 
 it("extracts the current document and interaction routes without response schemas", () => {
   const inventory = endpointInventory();
-  expect(inventory).toHaveLength(36);
+  expect(inventory).toHaveLength(37);
   expect(inventory).toContainEqual(operation);
+  expect(inventory).toContainEqual({
+    host: "uwcourses.com",
+    method: "GET",
+    endpoint: "/api/facets",
+  });
   expect(inventory).toContainEqual({
     host: "uwcourses.com",
     method: "GET",

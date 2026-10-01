@@ -1,3 +1,5 @@
+import { tagThresholds } from "./course-tags";
+
 export interface GradePeer {
   uid: string;
   term: string;
@@ -16,8 +18,8 @@ export type Benchmarks = Record<string, Benchmark | null>;
 
 // Each course has equal weight. Grade count uses the median, not total enrollment.
 export function benchmark(rows: GradePeer[]): Benchmark | null {
-  const peers = rows.filter((row) => row.count >= 30);
-  if (peers.length < 10) return null;
+  const peers = rows.filter((row) => row.count >= tagThresholds.letterGrades);
+  if (peers.length < tagThresholds.benchmarkCourses) return null;
   const counts = peers.map((row) => row.count).sort((a, b) => a - b);
   return {
     size: peers.length,

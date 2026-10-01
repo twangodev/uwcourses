@@ -18,12 +18,22 @@ function compile(search: string, availability: "offered" | "all" = "offered") {
 
 describe("course filter compiler", () => {
   it("accepts boundary values and rejects malformed ones", () => {
-    expect(filters("gpa_min=4&gpa_max=0&level=0,900&credits_min=0&credits_max=20").gpaMin).toBe(4);
+    expect(
+      filters("gpa_min=4&gpa_max=0&level=0,900&credits_min=0&credits_max=20")
+        .gpaMin,
+    ).toBe(4);
     expect(filters("level=0,900").levels).toEqual([0, 900]);
-    expect(filters(`subject=${Array.from({ length: 12 }, (_, i) => `S${i}`).join(",")}`).subjects).toHaveLength(12);
+    expect(
+      filters(
+        `subject=${Array.from({ length: 12 }, (_, i) => `S${i}`).join(",")}`,
+      ).subjects,
+    ).toHaveLength(12);
     for (const search of [
+      "tags=easy",
+      "tags=small-lectures,unknown",
       "gpa_min=nope",
       "gpa_min=4.1",
+      "gpa_max_exclusive=yes",
       "credits_max=21",
       "days=fundy",
       "time=noon",
@@ -41,11 +51,30 @@ describe("course filter compiler", () => {
     }
   });
 
+  it("requires every selected tag and deduplicates repeated values", () => {
+    const compiled = compile(
+      "tags=small-lectures,higher-grades,small-lectures",
+      "all",
+    );
+    expect(compiled.values).toEqual(["small-lectures", "higher-grades"]);
+    expect(compiled.where.match(/EXISTS/g)).toHaveLength(2);
+    expect(compiled.history).toBe(false);
+  });
+
   it("compiles graduate bands as course-number ranges", () => {
     const compiled = compile("level=700,800,900");
     expect(compiled.where).toContain("BETWEEN ? AND ?");
     expect(compiled.values).toEqual([700, 799, 800, 899, 900, 999, term]);
     expect(compiled.history).toBe(false);
+  });
+  it("supports exclusive GPA maxima for histogram bins without changing manual inclusive bounds", () => {
+    expect(
+      compile("gpa_min=3.5&gpa_max=3.6&gpa_max_exclusive=true", "all").where,
+    ).toContain("h.history_gpa<?");
+    expect(compile("gpa_min=3.5&gpa_max=3.6", "all").where).toContain(
+      "h.history_gpa<=?",
+    );
+    expect(compile("gpa_max_exclusive=true", "all").history).toBe(false);
   });
 
   it("compiles a full query as one predicate list and one history flag", () => {
@@ -76,7 +105,10 @@ describe("course filter compiler", () => {
   });
 
   it("ORs subjects and keeps credit comparisons on the opposite column", () => {
-    const compiled = compile("subject=COMPSCI,MATH&credits_min=3&credits_max=3", "all");
+    const compiled = compile(
+      "subject=COMPSCI,MATH&credits_min=3&credits_max=3",
+      "all",
+    );
     expect(compiled.where).toContain("s.subject IN (?,?)");
     expect(compiled.where).toContain("c.credits_max>=?");
     expect(compiled.where).toContain("c.credits_min<=?");

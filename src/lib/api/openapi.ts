@@ -113,6 +113,7 @@ export function openapiSpec() {
   const interactions = [
     ["/api/status", "Status", "Dataset"],
     ["/api/search", "Search", "SearchResponse"],
+    ["/api/facets", "Facets", "FacetResponse"],
     ["/api/suggest", "Suggestions", "SuggestionsResponse"],
     ["/api/courses/{uid}/grades", "Grades", "GradesResponse"],
     [
@@ -147,7 +148,17 @@ export function openapiSpec() {
       parameters.push(
         query("revision", "Optional pinned HF revision; mismatch returns 409."),
       );
-    if (name === "Search" || name === "Suggestions")
+    if (name === "Facets")
+      parameters.push(
+        ...searchParameters.filter(
+          (parameter) => !["page", "sort"].includes(parameter.name),
+        ),
+        query(
+          "facets",
+          "Comma-separated distribution names. Counts cover every result and hold other filters fixed; matched is the current-result overlay.",
+        ),
+      );
+    else if (name === "Search" || name === "Suggestions")
       parameters.push(
         ...searchParameters.filter(
           (parameter) => name !== "Suggestions" || parameter.name !== "page",

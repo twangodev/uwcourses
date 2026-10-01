@@ -1,4 +1,5 @@
 import type {} from "webmcp-types";
+import { courseTagValues } from "$lib/course-tags";
 import { z } from "zod";
 import {
   catalogSeasons,
@@ -45,7 +46,7 @@ type Navigate = (href: string) => Promise<void> | void;
 
 function query(
   path: string,
-  values: Record<string, string | number | readonly (string | number)[] | undefined>,
+  values: Record<string, string | number | boolean | readonly (string | number)[] | undefined>,
 ) {
   const params = new URLSearchParams();
   for (const [key, value] of Object.entries(values)) {
@@ -278,10 +279,12 @@ export function createWebmcpTools({
           ])
           .optional()
           .describe(facetParam("level").description),
+        tags: z.array(z.enum(courseTagValues)).max(courseTagValues.length).optional().describe(facetParam("tags").description),
         credits_min: z.number().min(0).max(20).optional().describe(facetParam("credits_min").description),
         credits_max: z.number().min(0).max(20).optional().describe(facetParam("credits_max").description),
         gpa_min: z.number().min(0).max(4).optional().describe(facetParam("gpa_min").description),
         gpa_max: z.number().min(0).max(4).optional().describe(facetParam("gpa_max").description),
+        gpa_max_exclusive: z.boolean().optional().describe(facetParam("gpa_max_exclusive").description),
         requisites: z.enum(requisiteFilters).optional().describe(facetParam("requisites").description),
         season: z.array(z.enum(catalogSeasons)).max(TOKEN_LIMIT).optional().describe(facetParam("season").description),
         designation: z.array(z.string().regex(/^[a-z0-9-]+:[a-z0-9-]+$/)).max(TOKEN_LIMIT).optional().describe(facetParam("designation").description),

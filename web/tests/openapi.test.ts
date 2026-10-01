@@ -6,7 +6,8 @@ it("publishes resolvable schemas with unique operations for every document forma
   const ids = Object.values(spec.paths).map(
     (path: any) => path.get.operationId,
   );
-  expect(new Set(ids).size).toBe(40);
+  expect(new Set(ids).size).toBe(41);
+  expect(spec.paths["/api/facets"]).toBeDefined();
   function walk(value: unknown) {
     if (!value || typeof value !== "object") return;
     if ("$ref" in value) {

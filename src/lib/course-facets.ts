@@ -2,13 +2,23 @@
 
 export const TOKEN_LIMIT = 12;
 
-export const weekdays = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"] as const;
+export const weekdays = [
+  "mon",
+  "tue",
+  "wed",
+  "thu",
+  "fri",
+  "sat",
+  "sun",
+] as const;
 export const timeBuckets = ["morning", "afternoon", "evening"] as const;
 export const instructionModes = ["in_person", "online", "mixed"] as const;
 export const catalogSeasons = ["fall", "spring", "summer"] as const;
 export const requisiteFilters = ["none", "listed"] as const;
 export const dayMatches = ["within", "any"] as const;
-export const levelBands = [0, 100, 200, 300, 400, 500, 600, 700, 800, 900] as const;
+export const levelBands = [
+  0, 100, 200, 300, 400, 500, 600, 700, 800, 900,
+] as const;
 export const undergraduateLevels = [0, 100, 200, 300, 400, 500, 600] as const;
 export const graduateLevels = [700, 800, 900] as const;
 
@@ -31,6 +41,20 @@ export type CourseFacet = {
 };
 
 export const courseFacets = [
+  {
+    id: "tags",
+    label: "Tags",
+    description:
+      "Course highlights, combined with AND. Uses the same evidence and thresholds as course-card badges.",
+    control: "tokens",
+    params: [
+      {
+        name: "tags",
+        description:
+          "small-lectures, large-lectures, higher-grades, lower-grades, or rated-teacher, combined with AND. Lecture enrollment and assigned instructors use the selected term. Grades use the latest released term at or before it, compared with the selected department (one subject) or school; requires 30+ letter grades and 10+ peer courses. These are evidence-based highlights, not predicted difficulty.",
+      },
+    ],
+  },
   {
     id: "subject",
     label: "Department",
@@ -93,6 +117,11 @@ export const courseFacets = [
         name: "gpa_max",
         description:
           "Historical letter-grade average is at most this value, from 0 through 4. Courses with no letter grades in the five-year window do not match.",
+      },
+      {
+        name: "gpa_max_exclusive",
+        description:
+          "Set to true to exclude the upper GPA bound, as when selecting a histogram bin. Defaults to false; requires gpa_max to have an effect.",
       },
     ],
   },
@@ -211,6 +240,7 @@ export function facetParam(name: string) {
 }
 
 export const panelFacetIds = [
+  "tags",
   "level",
   "credits",
   "gpa",
@@ -224,7 +254,7 @@ export const panelFacetIds = [
 ] as const satisfies readonly CourseFacetId[];
 
 export function panelFacets() {
-  return panelFacetIds.map(
-    (id) => courseFacets.find((facet) => facet.id === id)!,
+  return panelFacetIds.map((id) =>
+    courseFacets.find((facet) => facet.id === id)!,
   );
 }

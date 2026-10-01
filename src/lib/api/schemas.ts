@@ -352,6 +352,29 @@ export const weatherSchema = named(
 );
 
 export const interactionSchemas = {
+  Facets: named(
+    "FacetResponse",
+    z.object({
+      revision: z.string(),
+      distributions: z.record(
+        z.string(),
+        z.object({
+          total: z.number().int().nonnegative(),
+          matched: z.number().int().nonnegative(),
+          missing: z.number().int().nonnegative(),
+          bins: z.array(
+            z.object({
+              value: z.string(),
+              label: z.string(),
+              count: z.number().int().nonnegative(),
+              matched: z.number().int().nonnegative(),
+              disabled: z.boolean().optional(),
+            }),
+          ),
+        }),
+      ),
+    }),
+  ),
   Suggestions: named(
     "SuggestionsResponse",
     z.object({

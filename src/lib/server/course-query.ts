@@ -17,17 +17,21 @@ import {
   type Weekday,
 } from "$lib/course-facets";
 
+import { courseTagValues, type CourseTag } from "$lib/course-tags";
+
 export { graduateLevels, undergraduateLevels };
 
 export type Designation = { family: string; value: string };
 
 export type CourseQuery = {
   subjects: string[];
+  tags: CourseTag[];
   levels: number[];
   creditsMin?: number;
   creditsMax?: number;
   gpaMin?: number;
   gpaMax?: number;
+  gpaMaxExclusive: boolean;
   requisites?: RequisiteFilter;
   seasons: CatalogSeason[];
   designations: Designation[];
@@ -41,6 +45,38 @@ export type CourseQuery = {
 };
 
 export type SqlTerm = { sql: string; values: unknown[]; history: boolean };
+
+export function courseFacetTerm(
+  query: CourseQuery,
+  id: string,
+): SqlTerm | undefined {
+  switch (id) {
+    case "tags":
+      return tagTerm(query);
+    case "subject":
+      return subjectTerm(query);
+    case "level":
+      return levelTerm(query);
+    case "credits":
+      return creditTerm(query);
+    case "gpa":
+      return gradeTerm(query);
+    case "requisites":
+      return requisiteTerm(query);
+    case "season":
+      return seasonTerm(query);
+    case "designation":
+      return designationTerm(query);
+    case "instructor":
+      return instructorTerm(query);
+    case "days":
+    case "time":
+    case "mode":
+      return scheduleTerm(query);
+    case "availability":
+      return offeringTerm(query);
+  }
+}
 
 export type CompiledCourseQuery = {
   where: string;
@@ -60,19 +96,29 @@ export function parseCourseFilters(
   const days = tokenList(params, "days").map(known(weekdayIndex, "day"));
   return {
     subjects: tokenList(params, "subject").map(subjectCode),
+    tags: unique(tokenList(params, "tags").map(choice(courseTagValues, "tag"))),
     levels: unique(tokenList(params, "level").map(levelBand)),
     creditsMin: optionalNumber(params, "credits_min", 0, 20),
     creditsMax: optionalNumber(params, "credits_max", 0, 20),
     gpaMin: optionalNumber(params, "gpa_min", 0, 4),
     gpaMax: optionalNumber(params, "gpa_max", 0, 4),
+    gpaMaxExclusive:
+      optionalChoice(params, "gpa_max_exclusive", [
+        "true",
+        "false",
+      ] as const) === "true",
     requisites: optionalChoice(params, "requisites", requisiteFilters),
-    seasons: unique(tokenList(params, "season").map(choice(catalogSeasons, "season"))),
+    seasons: unique(
+      tokenList(params, "season").map(choice(catalogSeasons, "season")),
+    ),
     designations: tokenList(params, "designation").map(designationToken),
     instructor: optionalText(params, "instructor", 200),
     days,
     daysMatch: optionalChoice(params, "days_match", dayMatches) ?? "within",
     times: unique(tokenList(params, "time").map(choice(timeBuckets, "time"))),
-    modes: unique(tokenList(params, "mode").map(choice(instructionModes, "mode"))),
+    modes: unique(
+      tokenList(params, "mode").map(choice(instructionModes, "mode")),
+    ),
     availability,
     term,
   };
@@ -80,6 +126,7 @@ export function parseCourseFilters(
 
 export function compileCourseQuery(query: CourseQuery): CompiledCourseQuery {
   const terms = [
+    tagTerm(query),
     subjectTerm(query),
     levelTerm(query),
     creditTerm(query),
@@ -95,6 +142,28 @@ export function compileCourseQuery(query: CourseQuery): CompiledCourseQuery {
     where: terms.map((term) => term.sql).join(""),
     values: terms.flatMap((term) => term.values),
     history: terms.some((term) => term.history),
+  };
+}
+
+export function tagTerm(
+  query: CourseQuery,
+  scope?: { column: "s.subject" } | { value: string },
+): SqlTerm | undefined {
+  if (!query.tags.length) return;
+  const subject = scope
+    ? ` AND (ct.subject IS NULL OR ct.subject=${"column" in scope ? scope.column : "?"})`
+    : "";
+  return {
+    sql: query.tags
+      .map(
+        () =>
+          ` AND EXISTS(SELECT 1 FROM course_tags ct WHERE ct.uid=c.uid AND ct.tag=?${subject})`,
+      )
+      .join(""),
+    values: query.tags.flatMap((tag) =>
+      scope && "value" in scope ? [tag, scope.value] : [tag],
+    ),
+    history: false,
   };
 }
 
@@ -142,7 +211,7 @@ function gradeTerm(query: CourseQuery): SqlTerm | undefined {
     values.push(query.gpaMin);
   }
   if (query.gpaMax !== undefined) {
-    parts.push("h.history_gpa<=?");
+    parts.push(query.gpaMaxExclusive ? "h.history_gpa<?" : "h.history_gpa<=?");
     values.push(query.gpaMax);
   }
   if (!parts.length) return;
@@ -204,8 +273,9 @@ function scheduleTerm(query: CourseQuery): SqlTerm | undefined {
   const hasTime = query.times.length > 0;
   const hasMode = query.modes.length > 0;
   if (!hasDays && !hasTime && !hasMode) return;
+  // Keep section lookup first so correlated queries use the course/term indexes.
   const from = hasMode
-    ? "section_modes m JOIN class_meetings cm ON cm.uid=m.uid AND cm.term=m.term AND cm.section_type=m.section_type AND cm.section_number=m.section_number"
+    ? "section_modes m CROSS JOIN class_meetings cm ON cm.uid=m.uid AND cm.term=m.term AND cm.section_type=m.section_type AND cm.section_number=m.section_number"
     : "class_meetings cm";
   const scope = hasMode
     ? `m.uid=c.uid AND m.term=? AND m.mode IN (${placeholders(query.modes.length)})`

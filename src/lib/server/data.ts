@@ -8,12 +8,11 @@ import {
   withInstructorRatings,
 } from "./instructor-ratings";
 import { ratingPriorWeight } from "$lib/instructor-ratings";
-import { isCourseCollection } from "$lib/course-collections";
 import { building, dev } from "$lib/server/runtime";
 import { error } from "@sveltejs/kit";
 import { coursePreviews } from "./discovery";
-import { compileCourseQuery, parseCourseFilters } from "./course-query";
-import { normalize } from "$lib/format";
+import { parseCourseFilters } from "./course-query";
+import { courseSearchScope, searchExpression } from "./course-search";
 import type { Status } from "$lib/types";
 /** Existing FTS and aggregation queries retain bound parameters. */
 export async function query<T = any>(
@@ -88,12 +87,7 @@ export async function search(
   const availability = url.searchParams.get("availability") || "offered";
   if (!["offered", "all"].includes(availability))
     error(400, "Invalid availability");
-  const searchable =
-    kind === "course"
-      ? q.replace(/\bCOMP\s+SCI\b/gi, "COMPSCI").replace(/\bCS\b/gi, "COMPSCI")
-      : q;
-  const tokens = searchable.match(/[\p{L}\p{N}]+/gu) || [];
-  const expression = tokens.map((t) => '"' + t + '"*').join(" AND ");
+  const expression = searchExpression(q, kind);
   const page = pageNumber(url),
     values: unknown[] = [];
   let from = kind === "course" ? "courses c" : "instructors c";
@@ -106,31 +100,32 @@ export async function search(
           availability as "offered" | "all",
         )
       : undefined;
-  const compiled = courseQuery ? compileCourseQuery(courseQuery) : undefined;
-  const needsHistory =
-    kind === "course" &&
-    (compiled!.history ||
-      url.searchParams.has("ranking") ||
-      url.searchParams.get("sort") === "gpa");
-  const totals = "SUM(a+ab+b+bc+c+d+f)";
-  const historySql = `WITH history AS (SELECT uid,${totals} grade_count,SUM(a*4+ab*3.5+b*3+bc*2.5+c*2+d)*1.0/NULLIF(${totals},0) history_gpa FROM grade_summaries WHERE term<=? AND CAST(term AS INTEGER)>? GROUP BY uid) `;
-  if (needsHistory) {
-    from += " LEFT JOIN history h ON h.uid=c.uid";
-    values.push(term, Number(term) - 50);
-  }
-  if (expression) {
-    from += ` JOIN (SELECT uid,bm25(search,0,0,12,6,1) score FROM search WHERE search MATCH ? AND kind=? ${kind === "course" ? "UNION ALL SELECT uid,-1000000 score FROM aliases WHERE alias=?" : ""}) m ON m.uid=c.uid`;
-    values.push(expression, kind);
-    if (kind === "course") values.push(normalize(q));
-  }
-  if (compiled) {
-    where += compiled.where;
-    values.push(...compiled.values);
-  }
   const ranking = url.searchParams.get("ranking");
-  if (ranking && (kind !== "course" || !isCourseCollection(ranking)))
-    error(400, "Invalid course ranking");
-  if (ranking) where += " AND h.grade_count>=100";
+  let prefix = "";
+  if (courseQuery) {
+    const scope = courseSearchScope(
+      courseQuery,
+      q,
+      ranking,
+      url.searchParams.get("sort") === "gpa",
+      {
+        ratingPrior: courseQuery.tags.includes("rated-teacher")
+          ? await instructorRatingPrior(platform)
+          : null,
+      },
+    );
+    prefix = scope.prefix;
+    from = scope.from;
+    where = scope.where;
+    values.push(...scope.values);
+  } else {
+    if (ranking) error(400, "Invalid course ranking");
+    if (expression) {
+      from +=
+        " JOIN (SELECT uid,bm25(search,0,0,12,6,1) score FROM search WHERE search MATCH ? AND kind=?) m ON m.uid=c.uid";
+      values.push(expression, kind);
+    }
+  }
   const sort = url.searchParams.get("sort");
   const prior =
     kind === "instructor" ? await instructorRatingPrior(platform) : null;
@@ -154,12 +149,12 @@ export async function search(
     ? [{ total: 0 }]
     : await query(
         platform,
-        `${needsHistory ? historySql : ""}SELECT count(DISTINCT c.uid) total FROM ${from} WHERE ${where}`,
+        `${prefix}SELECT count(DISTINCT c.uid) total FROM ${from} WHERE ${where}`,
         values,
       );
   const items = await query(
     platform,
-    `${needsHistory ? historySql : ""}SELECT ${fields} FROM ${from} WHERE ${where} GROUP BY c.uid ORDER BY ${order} LIMIT ? OFFSET ?`,
+    `${prefix}SELECT ${fields} FROM ${from} WHERE ${where} GROUP BY c.uid ORDER BY ${order} LIMIT ? OFFSET ?`,
     [...values, suggestions ? 6 : 30, suggestions ? 0 : (page - 1) * 30],
   );
   return {
@@ -175,6 +170,7 @@ export async function search(
               courseQuery?.subjects.length === 1
                 ? courseQuery.subjects[0]
                 : "school",
+              courseQuery?.tags,
             )
         : await withInstructorUrls(items, platform),
     total: count.total,
@@ -185,11 +181,9 @@ export async function search(
     availability,
     instructor_name: courseQuery?.instructor
       ? ((
-          await query(
-            platform,
-            "SELECT name FROM instructors WHERE uid=?",
-            [courseQuery.instructor],
-          )
+          await query(platform, "SELECT name FROM instructors WHERE uid=?", [
+            courseQuery.instructor,
+          ])
         )[0]?.name ?? null)
       : null,
     filters: Object.fromEntries(url.searchParams),
