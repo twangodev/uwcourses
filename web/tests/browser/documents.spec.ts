@@ -64,7 +64,8 @@ test("API discovery, aliases, query handling, errors and transport remain distin
 }) => {
   const spec = await (await request.get("/openapi.json")).json();
   expect(spec.openapi).toBe("3.1.0");
-  expect(Object.keys(spec.paths)).toHaveLength(40);
+  expect(Object.keys(spec.paths)).toHaveLength(41);
+  expect(spec.paths["/api/facets"].get.operationId).toBe("apiFacets");
   expect(spec.paths["/api/suggest"].get.operationId).toBe("apiSuggestions");
   expect(spec.paths["/api/weather"].get.operationId).toBe("madisonWeather");
   expect(spec.components.schemas.Course.properties.requirements).toBeTruthy();
@@ -135,7 +136,9 @@ test("weather remains readable after the Worker cache is populated", async ({
   }
 });
 
-test("canonical URLs negotiate formats without changing browser or transport responses", async ({ request }) => {
+test("canonical URLs negotiate formats without changing browser or transport responses", async ({
+  request,
+}) => {
   const path = "/courses/COMPSCI_300";
   for (const [accept, type] of [
     ["text/markdown", "text/markdown"],
@@ -152,11 +155,17 @@ test("canonical URLs negotiate formats without changing browser or transport res
   }
   const md = await request.get(path, { headers: { Accept: "text/markdown" } });
   expect(await md.text()).toBe(await (await request.get(path + ".md")).text());
-  const head = await request.head(path, { headers: { Accept: "text/markdown" } });
+  const head = await request.head(path, {
+    headers: { Accept: "text/markdown" },
+  });
   expect(head.headers()["content-type"]).toContain("text/markdown");
   expect(await head.text()).toBe("");
-  const explicit = await request.get(path + ".json", { headers: { Accept: "text/markdown" } });
+  const explicit = await request.get(path + ".json", {
+    headers: { Accept: "text/markdown" },
+  });
   expect(explicit.headers()["content-type"]).toContain("application/json");
-  const transport = await request.get(path + "/__data.json", { headers: { Accept: "text/markdown" } });
+  const transport = await request.get(path + "/__data.json", {
+    headers: { Accept: "text/markdown" },
+  });
   expect((await transport.json()).schema_version).toBeUndefined();
 });

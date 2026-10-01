@@ -409,16 +409,13 @@ export async function courseDistributions(
           result.bins.sort((a, b) => Number(a.value) - Number(b.value));
           break;
         case "credits": {
-          const amounts = Array.from(
-            { length: 41 },
-            (_, i) => `SELECT ${i / 2} value`,
-          ).join(" UNION ALL ");
+          const amounts = Array.from({ length: 41 }, (_, i) => i / 2);
           result = await aggregate(
             context,
             current,
             id,
             "v.value",
-            ` JOIN (${amounts}) v ON v.value BETWEEN c.credits_min AND c.credits_max`,
+            ` JOIN json_each('${JSON.stringify(amounts)}') v ON v.value BETWEEN c.credits_min AND c.credits_max`,
             "",
             platform,
           );
