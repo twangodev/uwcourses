@@ -5,13 +5,18 @@ export function responseCacheKey(url: URL, release: string, format = "html") {
   const key = new URL(url);
   key.searchParams.sort();
   key.pathname =
-    "/__response-cache/" + encodeURIComponent(release) + "/" + format + key.pathname;
+    "/__response-cache/" +
+    encodeURIComponent(release) +
+    "/" +
+    format +
+    key.pathname;
   return new Request(key);
 }
 export async function cachedResponse(
   event: RequestEvent,
   render: () => Promise<Response>,
   format = "html",
+  options: { url?: URL; ttl?: number; clientCacheControl?: string } = {},
 ) {
   const env = event.platform?.env;
   const release =
@@ -29,11 +34,16 @@ export async function cachedResponse(
   )
     return render();
   const cache = (caches as CacheStorage & { default: Cache }).default;
-  const key = responseCacheKey(event.url, release, format);
+  const key = responseCacheKey(options.url ?? event.url, release, format);
   const hit = await cache.match(key);
   const respond = (response: Response, state: string) => {
     const headers = new Headers(response.headers);
-    headers.set("Cache-Control", "public, max-age=0, must-revalidate");
+    headers.set(
+      "Cache-Control",
+      options.clientCacheControl ?? "public, max-age=0, must-revalidate",
+    );
+    if (format === "api" && state === "HIT")
+      headers.set("Server-Timing", "cache;desc=HIT");
     headers.set("X-Cache", state);
     if (event.request.headers.get("if-none-match") === headers.get("etag"))
       return new Response(null, { status: 304, headers });
@@ -58,7 +68,7 @@ export async function cachedResponse(
       ).join("") +
       '"',
   );
-  headers.set("Cache-Control", "public, max-age=86400");
+  headers.set("Cache-Control", `public, max-age=${options.ttl ?? 86400}`);
   const stored = new Response(body, { headers });
   event.platform.context.waitUntil(
     cache
@@ -66,4 +76,61 @@ export async function cachedResponse(
       .catch((error) => console.error("Response cache write failed", error)),
   );
   return respond(stored, "MISS");
+}
+
+const searchApiPaths = new Set(["/api/search", "/api/facets", "/api/suggest"]);
+export function isSearchApi(path: string) {
+  return searchApiPaths.has(path);
+}
+
+export function apiCacheUrl(url: URL) {
+  const key = new URL(url);
+  if (key.pathname === "/api/facets") {
+    key.searchParams.delete("page");
+    key.searchParams.delete("sort");
+    const tokenParams = new Set([
+      "subject",
+      "tags",
+      "level",
+      "season",
+      "designation",
+      "days",
+      "time",
+      "mode",
+    ]);
+    const entries = [...key.searchParams].map(
+      ([name, value]) =>
+        [
+          name,
+          name === "facets"
+            ? value.split(",").sort().join(",")
+            : tokenParams.has(name)
+              ? value
+                  .split(",")
+                  .map((token) => token.trim())
+                  .filter(Boolean)
+                  .sort()
+                  .join(",")
+              : name === "q"
+                ? value.trim()
+                : value,
+        ] as const,
+    );
+    key.search = "";
+    for (const [name, value] of entries) key.searchParams.append(name, value);
+  }
+  // Search/suggest echo raw filters, so preserve their values and duplicate ordering.
+  key.searchParams.sort();
+  return key;
+}
+export function cachedApiResponse(
+  event: RequestEvent,
+  render: () => Promise<Response>,
+) {
+  if (!isSearchApi(event.url.pathname)) return render();
+  return cachedResponse(event, render, "api", {
+    url: apiCacheUrl(event.url),
+    ttl: 300,
+    clientCacheControl: "public, max-age=60",
+  });
 }

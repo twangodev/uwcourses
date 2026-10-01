@@ -6,7 +6,7 @@ import { redirect, isHttpError, type Handle } from "@sveltejs/kit";
 import { representation, isDocument, alternateLinks } from "$lib/documents";
 import { documentResponse } from "$lib/server/documents/response";
 import { negotiatedFormat } from "$lib/server/content-negotiation";
-import { cachedResponse } from "$lib/server/response-cache";
+import { cachedResponse, cachedApiResponse, isSearchApi } from "$lib/server/response-cache";
 
 export const handle: Handle = async ({ event, resolve }) => {
   const path = event.url.pathname;
@@ -69,7 +69,7 @@ export const handle: Handle = async ({ event, resolve }) => {
       : render;
   const response = await (!building && !dev && (requested || isDocument(path))
     ? cachedResponse(event, serve, format)
-    : serve());
+    : !building && !dev && isSearchApi(path) ? cachedApiResponse(event, serve) : serve());
   if (negotiable) {
     // Set this after the internal cache: its key already contains the chosen format.
     const headers = new Headers(response.headers);

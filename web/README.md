@@ -143,6 +143,12 @@ Drizzle owns interactive database reads; the Python importer owns the read-model
 ## Search performance
 
 Run `node --import tsx web/benchmark-search.ts` against the prepared dataset. Add
-`--explain` to include query plans. Reports include result fingerprints and median
+`--explain` to include query plans; `--legacy` compares canonical calculations with
+precomputed serving statistics. Reports include result fingerprints and median
 local SQLite execution times; they exclude D1 network latency and result-card work.
 Compare the same dataset and result fingerprints before interpreting speed changes.
+
+Search, facet, and suggestion API responses use a five-minute release-addressed
+edge cache. Facet keys omit pagination and sorting and normalize token order;
+search and suggestion keys preserve echoed filter values. Errors and credentialed
+requests bypass shared caching. Browser caching remains one minute.
