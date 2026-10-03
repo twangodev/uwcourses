@@ -1,11 +1,23 @@
 import data from "$lib/assets/campus-buildings.json";
 
 type Point = number[];
-interface Footprint {
+export interface Footprint {
   id: string;
   name: string;
   points: Point[];
+  polygons?: Point[][][];
+  names?: string[];
+  sourceUrl?: string;
 }
+const imported = import.meta.glob<{ buildings: Footprint[] }>(
+  "/.site/import/buildings.json",
+  { eager: true, import: "default" },
+);
+const official = Object.values(imported)[0]?.buildings ?? [];
+export const hasOfficialBuildings = official.length > 0;
+const defaultFootprints: Footprint[] = hasOfficialBuildings
+  ? official
+  : data.buildings;
 interface Activity {
   name: string;
   x: number;
@@ -43,7 +55,7 @@ function distance(points: Point[], x: number, y: number) {
 // A nearby polygon is accepted only within ~15 m and without a competing match.
 export function buildingOutlines(
   activity: Activity[],
-  footprints: Footprint[] = data.buildings,
+  footprints: Footprint[] = defaultFootprints,
 ) {
   const result = new Map<
     string,
@@ -52,16 +64,28 @@ export function buildingOutlines(
   for (const building of activity) {
     const candidates = footprints.map((footprint) => ({
       footprint,
-      distance: distance(footprint.points, building.x, building.y),
+      distance: Math.min(
+        ...(footprint.polygons ?? [[footprint.points]]).map((rings) =>
+          distance(rings[0], building.x, building.y),
+        ),
+      ),
     }));
     const named = candidates.filter(
       (c) =>
         c.footprint.name &&
-        normalize(c.footprint.name) === normalize(building.name) &&
+        (c.footprint.names ?? [c.footprint.name]).some(
+          (name) => normalize(name) === normalize(building.name),
+        ) &&
         c.distance < 30,
     );
     const containing = candidates.filter((c) =>
-      contains(c.footprint.points, building.x, building.y),
+      (c.footprint.polygons ?? [[c.footprint.points]]).some(
+        (rings) =>
+          contains(rings[0], building.x, building.y) &&
+          !rings
+            .slice(1)
+            .some((ring) => contains(ring, building.x, building.y)),
+      ),
     );
     const nearest = candidates.sort((a, b) => a.distance - b.distance);
     const match =
@@ -86,7 +110,10 @@ export function buildingOutlines(
         name: building.name,
         names: [building.name],
         count: building.count,
-        path: "M" + footprint.points.map((p) => p.join(",")).join("L") + "Z",
+        path: (footprint.polygons ?? [[footprint.points]])
+          .flat()
+          .map((ring) => "M" + ring.map((p) => p.join(",")).join("L") + "Z")
+          .join(""),
       });
   }
   return [...result.values()];

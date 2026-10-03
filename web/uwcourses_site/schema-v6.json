@@ -305,6 +305,27 @@
         "term_id": "string",
         "waitlisted": "int64"
       }
+    },
+    "buildings_current": {
+      "columns": {
+        "run_id": "string",
+        "observed_at": "timestamp[us, tz=UTC]",
+        "source_observed_at": "timestamp[us, tz=UTC]",
+        "source_url": "string",
+        "content_hash": "string",
+        "building_uid": "string",
+        "map_object_id": "int64",
+        "building_number": "string",
+        "name": "string",
+        "street_address": "string",
+        "description": "string",
+        "hours": "string",
+        "latitude": "double",
+        "longitude": "double",
+        "geometry_json": "string",
+        "meta_json": "string",
+        "object_type": "string"
+      }
     }
   },
   "version": 6

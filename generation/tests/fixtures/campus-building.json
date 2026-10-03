@@ -1,0 +1,16 @@
+{
+  "id": 366,
+  "map_object_id": 366,
+  "object_type": "building",
+  "building_number": "0155",
+  "name": "Computer Sciences",
+  "street_address": "1210 W. Dayton St.",
+  "description": null,
+  "hours": null,
+  "lnglat": [-89.4067, 43.0715],
+  "geojson": {
+    "type": "Polygon",
+    "coordinates": [[[-89.407, 43.071], [-89.406, 43.071], [-89.406, 43.072], [-89.407, 43.071]]]
+  },
+  "meta": {"cname": "Computer Sciences and Statistics", "sname": "bdg_CmpSc"}
+}

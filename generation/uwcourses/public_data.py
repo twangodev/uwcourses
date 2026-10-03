@@ -17,6 +17,11 @@ from .review_data import (
 
 from .models import canonical, digest
 from .identities import catalog_identities
+from .buildings import (
+    SCHEMA as BUILDING_SCHEMA,
+    DESCRIPTION as BUILDING_DESCRIPTION,
+    building_rows,
+)
 from .dataset_shape import (
     SCHEMAS as SHAPE_SCHEMAS,
     DESCRIPTIONS as SHAPE_DESCRIPTIONS,
@@ -131,6 +136,8 @@ DESCRIPTIONS = {
 
 SCHEMAS["rmp_reviews"] = REVIEW_SCHEMA
 DESCRIPTIONS["rmp_reviews"] = REVIEW_DESCRIPTION
+SCHEMAS["buildings_current"] = BUILDING_SCHEMA
+DESCRIPTIONS["buildings_current"] = BUILDING_DESCRIPTION
 SCHEMAS.update(SHAPE_SCHEMAS)
 DESCRIPTIONS.update(SHAPE_DESCRIPTIONS)
 
@@ -499,6 +506,11 @@ def write_public(database, destination, release_id, source_run, registry_path=No
             max_text_bytes=16 * 1024 * 1024,
         )
         counts.update(write_shape(db, directory, runs, source_run, identities))
+        counts["buildings_current"] = write_rows(
+            directory / "buildings_current.parquet",
+            BUILDING_SCHEMA,
+            building_rows(db, source_run, runs[source_run]["observed_at"]),
+        )
         counts["rmp_reviews"] = write_rows(
             directory / "rmp_reviews.parquet",
             REVIEW_SCHEMA,
@@ -581,9 +593,9 @@ def dataset_card(
                 badge("last scan", "$.last_scan_utc"),
                 badge("courses", "$.courses"),
                 "",
-                "UW–Madison courses, grades, instructors, student reviews, offerings, history, and LLM metadata in Parquet.",
+                "UW–Madison courses, grades, instructors, student reviews, offerings, campus buildings, history, and LLM metadata in Parquet.",
                 "",
-                "Sources: [UW Guide](https://guide.wisc.edu/), [enrollment](https://public.enroll.wisc.edu/), [Madgrades](https://madgrades.com/), [Rate My Professors](https://www.ratemyprofessors.com/).",
+                "Sources: [UW Guide](https://guide.wisc.edu/), [enrollment](https://public.enroll.wisc.edu/), [campus map](https://map.wisc.edu/buildings/), [Madgrades](https://madgrades.com/), [Rate My Professors](https://www.ratemyprofessors.com/).",
                 "",
                 "```python",
                 "from datasets import load_dataset",

@@ -172,6 +172,10 @@ def _release(store, run, enrichment_ids):
 
 
 def prepare_instructor_refresh(store, source_run, source_workspace=None):
+    return prepare_source_refresh(store, source_run, "instructors", source_workspace)
+
+
+def prepare_source_refresh(store, source_run, refreshed_source, source_workspace=None):
     """Reuse frozen core observations, preserving timestamps, in a new snapshot."""
     from .cli import code_hash
 
@@ -180,18 +184,30 @@ def prepare_instructor_refresh(store, source_run, source_workspace=None):
         require_snapshot(source, source_run)
         info = source.run(source_run)
         if info["origin"] != "scrape":
-            raise ValueError("Instructor refresh requires a native source snapshot")
+            raise ValueError("Source refresh requires a native source snapshot")
+        if refreshed_source not in {"instructors", "buildings"}:
+            raise ValueError("Unsupported source refresh")
         config = json.loads(info["config_json"])
+        reused = [
+            name
+            for name in SOURCES
+            if name != refreshed_source
+            and (
+                name != "buildings"
+                or source.stage_status(source_run, name) == "complete"
+            )
+        ]
         config.update(
             workflow="snapshot-v1",
             sources=list(SOURCES),
-            ratings_contract=1,
             code_hash=code_hash(),
-            reused_sources={name: source_run for name in SOURCES[:3]},
+            reused_sources={name: source_run for name in reused},
             reused_source_input_hash=source.input_hash(source_run),
         )
+        if refreshed_source == "instructors":
+            config["ratings_contract"] = 1
         run = store.new_run(info["semester"], config)
-        for stage in SOURCES[:3]:
+        for stage in reused:
             if source.stage_status(source_run, stage) != "complete":
                 raise ValueError(f"Cannot reuse incomplete source: {stage}")
             with store.db:

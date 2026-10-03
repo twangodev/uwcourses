@@ -3,7 +3,7 @@
 import json
 import os
 import re
-from urllib.parse import urlparse
+from urllib.parse import parse_qs, urlparse
 
 import scrapy
 from scrapy.http import JsonRequest
@@ -411,7 +411,65 @@ class InstructorSpider(SourceSpider):
         yield from self.collect_reviews(response, name, candidates, index, cursors)
 
 
+class BuildingSpider(SourceSpider):
+    name = "buildings"
+    allowed_domains = ["map.wisc.edu", "www.map.wisc.edu"]
+
+    async def start(self):
+        yield self.request("https://map.wisc.edu/buildings/", self.directory)
+
+    def directory(self, response):
+        from bs4 import BeautifulSoup
+
+        soup = BeautifulSoup(response.body, "html.parser")
+        found = set()
+        for row in soup.select("table tr"):
+            cells = row.find_all("td")
+            if len(cells) != 2:
+                continue
+            number = cells[1].get_text(strip=True)
+            if not number:
+                # Group entries such as Eagle Heights have no individual source ID.
+                continue
+            link = cells[0].find("a", href=True)
+            url = response.urljoin(link["href"]) if link else ""
+            parsed = urlparse(url)
+            if (
+                parsed.scheme != "https"
+                or parsed.hostname not in self.allowed_domains
+                or parse_qs(parsed.query).get("initObj") != [number]
+            ):
+                raise ValueError(f"Invalid official building link: {number}")
+            if number not in found:
+                found.add(number)
+                yield self.request(url, self.building, cb_kwargs={"number": number})
+        if not found:
+            raise ValueError("Campus building directory contains no building IDs")
+
+    def building(self, response, number):
+        from .buildings import validate_building
+
+        # Building links use FP&M IDs; the embedded record exposes the separate
+        # map-object ID, geometry and metadata without an extra API request.
+        match = re.search(
+            r"window\.Rails=(.*?);window\.W=", response.body.decode("utf-8"), re.S
+        )
+        if not match:
+            raise ValueError("Missing campus map initialization data")
+        data = json.loads(match[1]).get("init_obj")
+        if not isinstance(data, dict) or data.get("building_number") != number:
+            raise ValueError(f"Campus map did not resolve building {number}")
+        validate_building(data)
+        yield item("buildings", data["map_object_id"], data, response)
+
+
 SPIDERS = {
     spider.name: spider
-    for spider in (CatalogSpider, MadgradesSpider, EnrollmentSpider, InstructorSpider)
+    for spider in (
+        CatalogSpider,
+        MadgradesSpider,
+        EnrollmentSpider,
+        InstructorSpider,
+        BuildingSpider,
+    )
 }

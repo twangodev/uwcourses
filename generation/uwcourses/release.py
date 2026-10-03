@@ -44,6 +44,8 @@ def validate(store, run):
     required_kinds = ["courses", "subjects", "terms", "grades", "offerings"]
     if "instructors" in required_sources:
         required_kinds.extend(["faculty", "ratings"])
+    if "buildings" in required_sources:
+        required_kinds.append("buildings")
     if json.loads(info["config_json"]).get("ratings_contract") == 1:
         from .ratings import instructor_names
 
@@ -79,7 +81,7 @@ def validate(store, run):
                 (previous[0],),
             )
         )
-        for kind in ("courses", "subjects", "grades", "faculty"):
+        for kind in ("courses", "subjects", "grades", "faculty", "buildings"):
             if kind in required_kinds and counts.get(kind, 0) < old.get(kind, 0) * 0.9:
                 errors.append(
                     f"{kind} count fell by more than 10% ({old[kind]} -> {counts.get(kind, 0)})"

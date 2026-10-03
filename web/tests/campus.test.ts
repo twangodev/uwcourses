@@ -142,6 +142,53 @@ describe("building heat", () => {
 });
 
 describe("campus building footprints", () => {
+  it("preserves official multipart footprints and holes, and accepts source aliases", () => {
+    const outer = [
+      [0, 0],
+      [40, 0],
+      [40, 40],
+      [0, 40],
+      [0, 0],
+    ];
+    const hole = [
+      [10, 10],
+      [30, 10],
+      [30, 30],
+      [10, 30],
+      [10, 10],
+    ];
+    const annex = [
+      [60, 0],
+      [100, 0],
+      [100, 40],
+      [60, 40],
+      [60, 0],
+    ];
+    const official = [
+      {
+        id: "uw-map:366",
+        name: "Computer Sciences",
+        names: ["Computer Sciences", "Computer Sciences and Statistics"],
+        points: outer,
+        polygons: [[outer, hole], [annex]],
+      },
+    ];
+    const result = buildingOutlines(
+      [{ name: "Unknown", x: 80, y: 20, count: 3 }],
+      official,
+    );
+    expect(result[0].id).toBe("uw-map:366");
+    expect(result[0].path.match(/M/g)).toHaveLength(3);
+    expect(
+      buildingOutlines([{ name: "Unknown", x: 20, y: 20, count: 3 }], official),
+    ).toEqual([]);
+    expect(
+      buildingOutlines(
+        [{ name: "Computer Sciences and Statistics", x: 20, y: 20, count: 3 }],
+        official,
+      )[0].id,
+    ).toBe("uw-map:366");
+  });
   const footprints = [
     {
       id: "a",

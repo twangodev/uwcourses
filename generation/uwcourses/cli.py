@@ -113,16 +113,23 @@ def parser():
             )
         if name == "replay":
             command.add_argument("--source", choices=SOURCES, required=True)
-    refresh = commands.add_parser(
-        "refresh-instructors",
-        help="Collect required faculty/RMP data using an existing frozen catalog and grades",
-    )
-    refresh.add_argument("run_id")
-    refresh.add_argument(
-        "--source-workspace",
-        type=Path,
-        help="Optional separate source workspace; the new run is written to --workspace",
-    )
+    for name, description in (
+        (
+            "refresh-instructors",
+            "Collect faculty/RMP data using an existing frozen catalog and grades",
+        ),
+        (
+            "refresh-buildings",
+            "Collect official campus buildings using an existing frozen course snapshot",
+        ),
+    ):
+        refresh = commands.add_parser(name, help=description)
+        refresh.add_argument("run_id")
+        refresh.add_argument(
+            "--source-workspace",
+            type=Path,
+            help="Optional separate source workspace; the new run is written to --workspace",
+        )
     commands.add_parser(
         "public-export",
         help="Build public Parquet tables from a verified archive",
@@ -377,13 +384,14 @@ def main(argv=None):
                 run = store.new_run(args.semester, config)
                 print(f"Created run {run}", flush=True)
                 result = execute(store, run)
-            elif args.command == "refresh-instructors":
-                from .lifecycle import prepare_instructor_refresh
+            elif args.command in {"refresh-instructors", "refresh-buildings"}:
+                from .lifecycle import prepare_source_refresh
 
-                run = prepare_instructor_refresh(
-                    store, args.run_id, args.source_workspace
+                source = args.command.removeprefix("refresh-")
+                run = prepare_source_refresh(
+                    store, args.run_id, source, args.source_workspace
                 )
-                print(f"Created instructor refresh run {run}", flush=True)
+                print(f"Created {source} refresh run {run}", flush=True)
                 result = execute(store, run)
             elif args.command == "resume":
                 result = execute(store, args.run_id)

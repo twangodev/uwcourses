@@ -5,6 +5,7 @@
   import CampusScene from "$lib/components/CampusScene.svelte";
   import CampusMap from "$lib/components/CampusMap.svelte";
   import { campusIntensity, type CampusDay } from "$lib/campus";
+  import { hasOfficialBuildings } from "$lib/campus-buildings";
   let activity = $state<{ day: CampusDay | null; now: number } | null>(null);
   let { data } = $props();
   let peak = $derived(data.campus.maxConcurrentClasses);
@@ -79,6 +80,9 @@
           >{/each}
       </div>
     </div>
+    {#if hasOfficialBuildings}<a href="https://map.wisc.edu/buildings/"
+        >Buildings: UW campus map</a
+      >{/if}
     <a
       class="block w-fit mr-0 ml-auto text-[9px] text-muted no-underline map-credit my-0"
       href="https://www.openstreetmap.org/copyright"

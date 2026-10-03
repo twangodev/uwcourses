@@ -130,6 +130,7 @@
         <path
           class="pointer-events-auto cursor-pointer opacity-[0.75] building-heat"
           d={building.path}
+          fill-rule="evenodd"
           fill="var(--accent)"
           fill-opacity={building.count
             ? 0.08 + campusIntensity(building.count, maxConcurrentClasses) * 0.3

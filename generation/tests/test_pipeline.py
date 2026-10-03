@@ -147,6 +147,16 @@ class PipelineTests(unittest.TestCase):
 
     def seed(self, run=None):
         run = run or self.run
+        self.store.put(
+            run,
+            "buildings",
+            {
+                "kind": "buildings",
+                "key": "366",
+                "payload": json.loads((FIXTURES / "campus-building.json").read_text()),
+                "source_url": "https://map.wisc.edu/?initObj=0155",
+            },
+        )
         spider = CatalogSpider(store=self.store, run=run)
         for row in spider.department(
             response(
@@ -233,6 +243,43 @@ class PipelineTests(unittest.TestCase):
         self.seed()
         self.assertEqual(before, self.store.input_hash(self.run))
         self.assertEqual(len(self.store.records(self.run, "courses")), 1)
+
+    def test_building_refresh_preserves_other_sources_and_original_snapshot(self):
+        from uwcourses.lifecycle import prepare_source_refresh
+
+        self.seed()
+        self.store.finish(self.run)
+        before = self.store.input_hash(self.run)
+        refreshed = prepare_source_refresh(self.store, self.run, "buildings")
+
+        def reused(run):
+            return [
+                tuple(row)
+                for row in self.store.db.execute(
+                    "SELECT source,kind,entity_id,observed_at,content_hash FROM observations "
+                    "WHERE run_id=? AND source!='buildings' ORDER BY source,kind,entity_id",
+                    (run,),
+                )
+            ]
+
+        self.assertEqual(reused(self.run), reused(refreshed))
+        self.assertEqual(self.store.stage_status(refreshed, "buildings"), "pending")
+        self.assertEqual(self.store.records(refreshed, "buildings"), {})
+        for source in SOURCES[:-1]:
+            self.assertEqual(self.store.stage_status(refreshed, source), "complete")
+        self.assertEqual(self.store.input_hash(self.run), before)
+
+    def test_building_refresh_accepts_snapshot_predating_buildings(self):
+        from uwcourses.lifecycle import prepare_source_refresh
+
+        self.seed()
+        with self.store.db:
+            self.store.db.execute("DELETE FROM observations WHERE source='buildings'")
+            self.store.db.execute("DELETE FROM stages WHERE stage='buildings'")
+        self.store.finish(self.run)
+        refreshed = prepare_source_refresh(self.store, self.run, "buildings")
+        self.assertEqual(self.store.stage_status(refreshed, "buildings"), "pending")
+        self.assertEqual(self.store.stage_status(refreshed, "instructors"), "complete")
 
     def test_invalid_item_does_not_modify_database(self):
         with self.assertRaises(ValueError):
@@ -367,6 +414,14 @@ class PipelineTests(unittest.TestCase):
         )
         self.assertNotIn("responses", counts)
         self.assertNotIn("stages", counts)
+        archived = pq.read_table(
+            Path(self.directory.name) / "tables/observations.parquet"
+        ).to_pylist()
+        (building,) = [row for row in archived if row["kind"] == "buildings"]
+        self.assertEqual(building["entity_id"], "366")
+        self.assertEqual(
+            json.loads(building["payload_json"])["building_number"], "0155"
+        )
         for table, count in counts.items():
             data = pq.read_table(
                 Path(self.directory.name) / "tables" / f"{table}.parquet"

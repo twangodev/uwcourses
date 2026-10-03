@@ -32,6 +32,7 @@ class Record(BaseModel):
         "instructors",
         "faculty",
         "ratings",
+        "buildings",
     ]
     key: str = Field(min_length=1)
     source_url: str = Field(min_length=1)
@@ -77,5 +78,11 @@ def validate_record(record):
             raise ValueError("Missing Madgrades offerings")
         if not isinstance(record.payload.get("cumulative"), dict):
             raise ValueError("Missing cumulative grades")
+    elif record.kind == "buildings":
+        from .buildings import validate_building
+
+        validate_building(record.payload)
+        if record.key != str(record.payload["map_object_id"]):
+            raise ValueError("Building key does not match map object ID")
     canonical(record.payload)
     return record

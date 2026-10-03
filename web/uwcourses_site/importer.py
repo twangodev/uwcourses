@@ -22,7 +22,7 @@ from .campus import CampusSchedule
 
 ROOT = Path.cwd()
 REPO = "twangodev/uwcourses"
-IMPORTER_VERSION = "8"
+IMPORTER_VERSION = "9"
 GRADES = ["a", "ab", "b", "bc", "c", "d", "f"]
 WEIGHTS = [4, 3.5, 3, 2.5, 2, 1, 0]
 MAX_CHUNK = 1024 * 1024
@@ -44,6 +44,53 @@ def normalize(value):
     return re.sub(r"^CS(?=\d)", "COMPSCI", value)
 
 
+def building_footprints(records):
+    """Project official geometry onto the existing campus basemap, retaining holes."""
+    footprints = []
+    for record in records:
+        geometry = json.loads(record["geometry_json"] or "null")
+        if not geometry or geometry["type"] not in {"Polygon", "MultiPolygon"}:
+            continue
+        polygons = geometry["coordinates"]
+        if geometry["type"] == "Polygon":
+            polygons = [polygons]
+        projected = [
+            [
+                [
+                    [
+                        round((lng + 89.425) / 0.034 * 900, 2),
+                        round((43.082 - lat) / 0.014 * 505, 2),
+                    ]
+                    for lng, lat in ring
+                ]
+                for ring in polygon
+            ]
+            for polygon in polygons
+        ]
+        meta = json.loads(record["meta_json"] or "{}")
+        footprints.append(
+            {
+                "id": record["building_uid"],
+                "name": record["name"],
+                "names": sorted(
+                    {
+                        record["name"],
+                        *(
+                            value
+                            for key in ("cname", "lname")
+                            if isinstance(value := meta.get(key), str) and value
+                        ),
+                    }
+                ),
+                "buildingNumber": record["building_number"],
+                "sourceUrl": record["source_url"],
+                "points": projected[0][0],
+                "polygons": projected,
+            }
+        )
+    return {"source": "https://map.wisc.edu/buildings/", "buildings": footprints}
+
+
 def rows(source, name):
     for batch in pq.ParquetFile(source / "public" / f"{name}.parquet").iter_batches(
         batch_size=4096
@@ -58,6 +105,11 @@ def verify(source):
         raise ValueError(f"Unsupported public schema: {schema['version']}")
     manifest = json.loads((source / "manifest.json").read_text())
     for name, table in expected["tables"].items():
+        # Additive v6 table: earlier releases have no official building source.
+        if name == "buildings_current" and name not in schema["tables"]:
+            if (source / "public" / f"{name}.parquet").exists():
+                raise ValueError("Undeclared buildings table")
+            continue
         rel = f"public/{name}.parquet"
         path = source / rel
         actual = pq.ParquetFile(path)
@@ -70,10 +122,11 @@ def verify(source):
         if actual.metadata.num_rows != schema["tables"][name]["rows"]:
             raise ValueError(f"Row count mismatch: {name}")
         declared = manifest["files"][rel]
+        with path.open("rb") as file:
+            checksum = hashlib.file_digest(file, "sha256").hexdigest()
         if (
             path.stat().st_size != declared["bytes"]
-            or hashlib.file_digest(path.open("rb"), "sha256").hexdigest()
-            != declared["sha256"]
+            or checksum != declared["sha256"]
         ):
             raise ValueError(f"Checksum mismatch: {rel}")
     return manifest
@@ -300,6 +353,14 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
         print(f"Packed {table}", flush=True)
         del grouped
     write(output / "campus.json", campus.write(static, revision))
+    write(
+        output / "buildings.json",
+        building_footprints(
+            rows(source, "buildings_current")
+            if (source / "public/buildings_current.parquet").exists()
+            else []
+        ),
+    )
     departments = defaultdict(list)
     summaries = []
     for uid, c in courses.items():

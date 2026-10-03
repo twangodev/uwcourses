@@ -26,6 +26,38 @@ no matching profile is distinct from a failed request. Raw candidates, comments,
 ratings, course labels, and dates are retained. Unambiguous profile matches with
 explicit course/date attribution feed the LLM student-experience input.
 
+The `buildings` spider also collects the official [campus building directory](https://map.wisc.edu/buildings/)
+and each linked map record. It preserves FP&M building numbers (including leading
+zeros and suffixes), separate map-object IDs, names, addresses, metadata, center
+coordinates, and complete GeoJSON geometry. Individual and partial building
+records are retained; group entries without a building number are skipped.
+Requests use the same response archive, retry, replay, and source checkpoints as
+the other spiders. A failed building crawl prevents the new snapshot from completing.
+
+Releases include a typed `buildings_current` Parquet table for the selected snapshot
+and full historical records in `archive_observations`. Both are included in Hugging
+Face publication. This is an additive schema-v6 table; older snapshots export an
+empty table and older published releases remain readable by the website. Website
+imports project the official outlines, retaining holes and multiple polygons, and
+use them in the campus maps. The background map remains attributed to OpenStreetMap.
+Building names and coordinates from course schedules retain their enrollment source;
+the map records do not assert that two source identities are equivalent.
+
+To add or refresh buildings in an existing native snapshot without collecting the
+other sources again:
+
+```sh
+uv run uwcourses refresh-buildings RUN_ID
+uv run uwcourses release NEW_RUN_ID
+uv run uwcourses publish RELEASE_ID --repo OWNER/DATASET
+```
+
+The refresh creates a new snapshot and preserves reused source timestamps. It
+supports `--source-workspace PATH` for a separate destination workspace.
+It does not run inference. To retain current LLM fields in a release of the new
+snapshot, use the enrichment reuse workflow below and select the resulting job
+with `release --enrichment JOB_ID`.
+
 To fill instructor data for an existing snapshot without re-scraping its catalog,
 grades, or enrollment, create a new snapshot:
 
@@ -39,6 +71,9 @@ provenance; the old snapshot and its LLM jobs remain immutable. Run enrichment
 against the new snapshot to include the collected reviews. The LLM input samples
 up to 30 reviews across instructors and time periods, without an age cutoff;
 all collected reviews remain in the source archive.
+
+Instructor refreshes reuse completed building observations too. If the original
+snapshot predates the building spider, the refresh collects the buildings source.
 
 The command prints its ID before starting. Logs live in `runs/RUN_ID/`. A fixed
 browser-style user agent is reused on resume. Successful sources are skipped;

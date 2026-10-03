@@ -405,6 +405,43 @@ class PublicDataTests(unittest.TestCase):
         for name in counts:
             self.assertIn(f"path: public/{name}.parquet", card)
 
+    def test_buildings_export_selected_snapshot_with_source_provenance(self):
+        from uwcourses.models import digest
+
+        data = json.loads(
+            (Path(__file__).parent / "fixtures/campus-building.json").read_text()
+        )
+        for run in ("old", "new"):
+            payload = {**data, "building_number": "0451B", "name": run + " name"}
+            self.db.execute(
+                "INSERT INTO observations VALUES(?,?,?,?,?,?,?,?)",
+                (
+                    run,
+                    "buildings",
+                    "buildings",
+                    "366",
+                    "https://map.wisc.edu/?initObj=0451B",
+                    "2026-09-02T00:00:00+00:00",
+                    digest(payload),
+                    canonical(payload),
+                ),
+            )
+        self.db.commit()
+        output, counts = self.export()
+        (row,) = pq.read_table(output / "public/buildings_current.parquet").to_pylist()
+        self.assertEqual(counts["buildings_current"], 1)
+        self.assertEqual(row["building_uid"], "uw-map:366")
+        self.assertEqual(row["building_number"], "0451B")
+        self.assertEqual(row["name"], "new name")
+        self.assertEqual(json.loads(row["geometry_json"]), data["geojson"])
+        self.assertEqual(json.loads(row["meta_json"]), data["meta"])
+        self.assertEqual(row["longitude"], data["lnglat"][0])
+        self.assertEqual(row["source_observed_at"].day, 2)
+        self.assertEqual(row["observed_at"].day, 1)
+        card = dataset_card("new", counts)
+        self.assertIn("config_name: buildings_current", card)
+        self.assertIn("https://map.wisc.edu/buildings/", card)
+
     def test_section_grades_keep_coteachers_and_replace_old_assignments(self):
         for run, people in [
             ("old", [{"id": 1, "name": "Old Name"}, {"id": 3, "name": "Gone"}]),

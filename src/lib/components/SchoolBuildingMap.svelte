@@ -1,6 +1,9 @@
 <script lang="ts">
   import map from "$lib/assets/campus-map.svg";
-  import { buildingOutlines } from "$lib/campus-buildings";
+  import {
+    buildingOutlines,
+    hasOfficialBuildings,
+  } from "$lib/campus-buildings";
   import { campusIntensity } from "$lib/campus";
   import type { SchoolTerm } from "$lib/school-stats";
   let {
@@ -45,6 +48,7 @@
         <path
           class="cursor-pointer"
           d={b.path}
+          fill-rule="evenodd"
           fill="var(--accent)"
           fill-opacity={0.12 + campusIntensity(b.count, peak) * 0.65}
           stroke="var(--accent)"
@@ -54,6 +58,7 @@
         <path
           class="cursor-pointer"
           d={b.path}
+          fill-rule="evenodd"
           fill="var(--accent)"
           fill-opacity={0.12 + campusIntensity(b.count, peak) * 0.65}
           stroke="var(--accent)"
@@ -86,7 +91,12 @@
           : "Enrollment unavailable"} · {meetings.toLocaleString()} meetings{:else}Select
         a building to explore its teaching activity.{/if}
     </p>
-  {/if}{#if preview}<span class="text-[10px] text-muted attribution"
+  {/if}
+  {#if hasOfficialBuildings}<a
+      class="text-[10px] text-muted attribution"
+      href="https://map.wisc.edu/buildings/">Buildings: UW campus map</a
+    >{/if}
+  {#if preview}<span class="text-[10px] text-muted attribution"
       >© OpenStreetMap contributors</span
     >{:else}<a
       class="text-[10px] text-muted attribution"

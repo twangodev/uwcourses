@@ -9,7 +9,7 @@ import json
 
 from .models import canonical, digest, validate_record
 
-SOURCES = ("catalog", "madgrades", "enrollment", "instructors")
+SOURCES = ("catalog", "madgrades", "enrollment", "instructors", "buildings")
 STAGES = SOURCES
 KINDS = (
     "subjects",
@@ -20,6 +20,7 @@ KINDS = (
     "instructors",
     "faculty",
     "ratings",
+    "buildings",
 )
 
 
