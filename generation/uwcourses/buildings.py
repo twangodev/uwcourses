@@ -38,6 +38,38 @@ DESCRIPTION = (
     "source records and historical observations remain in archive_observations. "
     "These records do not infer course-location identity. Older snapshots may be empty."
 )
+HISTORY_SCHEMA = pa.schema(
+    [
+        ("run_id", pa.string()),
+        ("source", pa.string()),
+        ("kind", pa.string()),
+        ("entity_id", pa.string()),
+        ("source_url", pa.string()),
+        ("observed_at", pa.timestamp("us", tz="UTC")),
+        ("content_hash", pa.string()),
+        ("payload_json", pa.string()),
+    ]
+)
+HISTORY_DESCRIPTION = (
+    "Complete official campus-map observations across snapshots, including source "
+    "metadata and image URLs in payload_json. observed_at is the observation timestamp, "
+    "not an inferred validity interval. entity_id is the map-object ID; FP&M building "
+    "numbers remain strings in the payload. buildings_current selects the map snapshot "
+    "used by this release. Supplemental building publications can extend an existing "
+    "course release without replacing its course or enrichment snapshot."
+)
+
+
+def building_observations(db):
+    from .public_data import timestamp
+
+    for row in db.execute(
+        "SELECT * FROM observations WHERE source='buildings' AND kind='buildings' "
+        "ORDER BY run_id,entity_id"
+    ):
+        value = dict(row)
+        value["observed_at"] = timestamp(value["observed_at"])
+        yield value
 
 
 def position(value):

@@ -21,6 +21,9 @@ from .buildings import (
     SCHEMA as BUILDING_SCHEMA,
     DESCRIPTION as BUILDING_DESCRIPTION,
     building_rows,
+    HISTORY_SCHEMA as BUILDING_HISTORY_SCHEMA,
+    HISTORY_DESCRIPTION as BUILDING_HISTORY_DESCRIPTION,
+    building_observations,
 )
 from .dataset_shape import (
     SCHEMAS as SHAPE_SCHEMAS,
@@ -138,6 +141,8 @@ SCHEMAS["rmp_reviews"] = REVIEW_SCHEMA
 DESCRIPTIONS["rmp_reviews"] = REVIEW_DESCRIPTION
 SCHEMAS["buildings_current"] = BUILDING_SCHEMA
 DESCRIPTIONS["buildings_current"] = BUILDING_DESCRIPTION
+SCHEMAS["building_observations"] = BUILDING_HISTORY_SCHEMA
+DESCRIPTIONS["building_observations"] = BUILDING_HISTORY_DESCRIPTION
 SCHEMAS.update(SHAPE_SCHEMAS)
 DESCRIPTIONS.update(SHAPE_DESCRIPTIONS)
 
@@ -510,6 +515,11 @@ def write_public(database, destination, release_id, source_run, registry_path=No
             directory / "buildings_current.parquet",
             BUILDING_SCHEMA,
             building_rows(db, source_run, runs[source_run]["observed_at"]),
+        )
+        counts["building_observations"] = write_rows(
+            directory / "building_observations.parquet",
+            BUILDING_HISTORY_SCHEMA,
+            building_observations(db),
         )
         counts["rmp_reviews"] = write_rows(
             directory / "rmp_reviews.parquet",

@@ -35,7 +35,7 @@ Requests use the same response archive, retry, replay, and source checkpoints as
 the other spiders. A failed building crawl prevents the new snapshot from completing.
 
 Releases include a typed `buildings_current` Parquet table for the selected snapshot
-and full historical records in `archive_observations`. Both are included in Hugging
+and full historical records in `building_observations` and `archive_observations`. These are included in Hugging
 Face publication. This is an additive schema-v6 table; older snapshots export an
 empty table and older published releases remain readable by the website. Website
 imports project the official outlines, retaining holes and multiple polygons, and

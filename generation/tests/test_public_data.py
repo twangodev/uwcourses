@@ -438,6 +438,12 @@ class PublicDataTests(unittest.TestCase):
         self.assertEqual(row["longitude"], data["lnglat"][0])
         self.assertEqual(row["source_observed_at"].day, 2)
         self.assertEqual(row["observed_at"].day, 1)
+        history = pq.read_table(
+            output / "public/building_observations.parquet"
+        ).to_pylist()
+        self.assertEqual([r["run_id"] for r in history], ["new", "old"])
+        self.assertEqual(json.loads(history[0]["payload_json"])["name"], "new name")
+        self.assertEqual(json.loads(history[1]["payload_json"])["name"], "old name")
         card = dataset_card("new", counts)
         self.assertIn("config_name: buildings_current", card)
         self.assertIn("https://map.wisc.edu/buildings/", card)
