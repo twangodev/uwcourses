@@ -9,7 +9,9 @@ import unittest
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from uwcourses.history import ENRICHMENT_SCHEMA, write_course
+from uwcourses.database import Database
+from uwcourses.schema import archive
+from uwcourses.history import ENRICHMENT_VIEWS, write_course
 from uwcourses.models import canonical
 from uwcourses.public_data import (
     SCHEMAS,
@@ -20,7 +22,7 @@ from uwcourses.public_data import (
     write_rows,
     selected_enrichments,
 )
-from uwcourses.release import PUBLIC_SCHEMA, write_parquet
+from uwcourses.release import PUBLIC_VIEWS, write_parquet
 
 
 class PublicDataTests(unittest.TestCase):
@@ -28,9 +30,10 @@ class PublicDataTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.database = self.root / "archive.sqlite"
-        self.db = sqlite3.connect(self.database)
-        self.db.executescript(PUBLIC_SCHEMA)
-        self.db.executescript(ENRICHMENT_SCHEMA)
+        self.db = Database(self.database)
+        archive.create_all(self.db.connection)
+        for statement in PUBLIC_VIEWS + ENRICHMENT_VIEWS:
+            self.db.execute(statement)
         self.record = {
             "course_reference": {"subjects": ["COMPSCI"], "course_number": 300},
             "course_title": "Programming II",
@@ -361,7 +364,6 @@ class PublicDataTests(unittest.TestCase):
 
     def test_selected_projection_does_not_retain_raw_traces(self):
         self.add_job("selected", 1)
-        self.db.row_factory = sqlite3.Row
         selected = selected_enrichments(self.db)
         self.assertTrue(selected)
         for value in selected.values():

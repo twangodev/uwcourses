@@ -7,6 +7,16 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 from . import SCHEMA_VERSION
+from sqlalchemy import select, literal, func
+from sqlalchemy.dialects.sqlite import insert
+
+from .database import Database
+from .schema import (
+    archive as archive_schema,
+    runs as source_runs,
+    observations as source_observations,
+    artifacts as source_artifacts,
+)
 from .models import canonical
 from .store import SOURCES
 
@@ -26,8 +36,9 @@ def validate(store, run):
             raise ValueError("Legacy snapshot is missing core records")
         return dict(
             store.db.execute(
-                "SELECT kind,count(*) FROM observations WHERE run_id=? GROUP BY kind",
-                (run,),
+                select(source_observations.c.kind, func.count())
+                .where(source_observations.c.run_id == run)
+                .group_by(source_observations.c.kind),
             )
         )
     errors = []
@@ -37,8 +48,9 @@ def validate(store, run):
             errors.append(f"Source {source} is incomplete")
     counts = dict(
         store.db.execute(
-            "SELECT kind,count(*) FROM observations WHERE run_id=? GROUP BY kind",
-            (run,),
+            select(source_observations.c.kind, func.count())
+            .where(source_observations.c.run_id == run)
+            .group_by(source_observations.c.kind),
         )
     )
     required_kinds = ["courses", "subjects", "terms", "grades", "offerings"]
@@ -71,14 +83,28 @@ def validate(store, run):
     if info["semester"] not in store.records(run, "terms", "enrollment"):
         errors.append("Target semester is missing")
     previous = store.db.execute(
-        "SELECT run_id FROM runs WHERE status='complete' AND origin='scrape' AND run_id!=? AND observed_at<=? ORDER BY observed_at DESC LIMIT 1",
-        (run, info["observed_at"]),
+        select(source_runs.c.run_id)
+        .where(
+            source_runs.c.status == "complete",
+            source_runs.c.origin == "scrape",
+            source_runs.c.run_id != run,
+            source_runs.c.observed_at <= info["observed_at"],
+            select(source_observations.c.entity_id)
+            .where(
+                source_observations.c.run_id == source_runs.c.run_id,
+                source_observations.c.kind == "courses",
+            )
+            .exists(),
+        )
+        .order_by(source_runs.c.observed_at.desc(), source_runs.c.run_id.desc())
+        .limit(1),
     ).fetchone()
     if previous:
         old = dict(
             store.db.execute(
-                "SELECT kind,count(*) FROM observations WHERE run_id=? GROUP BY kind",
-                (previous[0],),
+                select(source_observations.c.kind, func.count())
+                .where(source_observations.c.run_id == previous[0])
+                .group_by(source_observations.c.kind),
             )
         )
         for kind in ("courses", "subjects", "grades", "faculty", "buildings"):
@@ -91,26 +117,10 @@ def validate(store, run):
     return counts
 
 
-PUBLIC_SCHEMA = """
-PRAGMA foreign_keys=ON;
-CREATE TABLE runs(run_id TEXT PRIMARY KEY,semester TEXT NOT NULL,observed_at TEXT NOT NULL,origin TEXT NOT NULL,source_revision TEXT);
-CREATE TABLE observations(run_id TEXT REFERENCES runs,source TEXT,kind TEXT,entity_id TEXT,source_url TEXT,observed_at TEXT,content_hash TEXT,payload_json TEXT,PRIMARY KEY(run_id,source,kind,entity_id));
-CREATE TABLE subjects(run_id TEXT REFERENCES runs,subject_id TEXT,name TEXT NOT NULL,PRIMARY KEY(run_id,subject_id));
-CREATE TABLE course_versions(version_id TEXT PRIMARY KEY,course_number INTEGER NOT NULL,title TEXT NOT NULL,description TEXT NOT NULL,prerequisites_json TEXT,record_json TEXT NOT NULL);
-CREATE TABLE course_snapshots(run_id TEXT REFERENCES runs,course_id TEXT,version_id TEXT NOT NULL REFERENCES course_versions,PRIMARY KEY(run_id,course_id));
-CREATE INDEX course_snapshots_course ON course_snapshots(course_id,run_id);
-CREATE VIEW courses AS SELECT s.run_id,s.course_id,v.course_number,v.title,v.description,v.prerequisites_json FROM course_snapshots s JOIN course_versions v USING(version_id);
-CREATE VIEW course_history AS SELECT s.run_id,s.course_id,s.version_id,r.semester,r.observed_at,r.origin,r.source_revision,v.course_number,v.title,v.description,v.prerequisites_json,v.record_json FROM course_snapshots s JOIN course_versions v USING(version_id) JOIN runs r USING(run_id);
-CREATE TABLE course_subjects(run_id TEXT,course_id TEXT,subject_id TEXT,PRIMARY KEY(run_id,course_id,subject_id),FOREIGN KEY(run_id,course_id) REFERENCES course_snapshots,FOREIGN KEY(run_id,subject_id) REFERENCES subjects);
-CREATE TABLE terms(run_id TEXT REFERENCES runs,term_id TEXT,name TEXT NOT NULL,PRIMARY KEY(run_id,term_id));
-CREATE TABLE instructors(run_id TEXT REFERENCES runs,instructor_id TEXT,name TEXT,email TEXT,official_name TEXT,department TEXT,position TEXT,details_json TEXT,PRIMARY KEY(run_id,instructor_id));
-CREATE TABLE grades(run_id TEXT,course_id TEXT,term_id TEXT,distribution_json TEXT NOT NULL,PRIMARY KEY(run_id,course_id,term_id),FOREIGN KEY(run_id,course_id) REFERENCES course_snapshots,FOREIGN KEY(run_id,term_id) REFERENCES terms);
-CREATE TABLE offerings(run_id TEXT REFERENCES runs,offering_id TEXT,term_id TEXT,course_id TEXT,source_course_id TEXT,source_subject_id TEXT,course_reference_json TEXT,details_json TEXT,PRIMARY KEY(run_id,offering_id),FOREIGN KEY(run_id,term_id) REFERENCES terms,FOREIGN KEY(run_id,course_id) REFERENCES course_snapshots);
-CREATE TABLE sections(run_id TEXT,offering_id TEXT,section_id TEXT,section_type TEXT,section_number TEXT,details_json TEXT,PRIMARY KEY(run_id,offering_id,section_id),FOREIGN KEY(run_id,offering_id) REFERENCES offerings);
-CREATE TABLE section_instructors(run_id TEXT,offering_id TEXT,section_id TEXT,instructor_name TEXT,instructor_id TEXT,PRIMARY KEY(run_id,offering_id,section_id,instructor_name),FOREIGN KEY(run_id,offering_id,section_id) REFERENCES sections,FOREIGN KEY(run_id,instructor_id) REFERENCES instructors);
-CREATE TABLE meetings(run_id TEXT,course_id TEXT,meeting_id TEXT,start_time INTEGER,end_time INTEGER,details_json TEXT,PRIMARY KEY(run_id,course_id,meeting_id),FOREIGN KEY(run_id,course_id) REFERENCES course_snapshots);
-CREATE TABLE derived_artifacts(run_id TEXT REFERENCES runs,name TEXT,input_hash TEXT,config_json TEXT,payload_json TEXT,PRIMARY KEY(run_id,name));
-"""
+PUBLIC_VIEWS = [
+    "CREATE VIEW courses AS SELECT s.run_id,s.course_id,v.course_number,v.title,v.description,v.prerequisites_json FROM course_snapshots s JOIN course_versions v USING(version_id)",
+    "CREATE VIEW course_history AS SELECT s.run_id,s.course_id,s.version_id,r.semester,r.observed_at,r.origin,r.source_revision,v.course_number,v.title,v.description,v.prerequisites_json,v.record_json FROM course_snapshots s JOIN course_versions v USING(version_id) JOIN runs r USING(run_id)",
+]
 
 
 def snapshot_state(store, run):
@@ -122,7 +132,9 @@ def snapshot_state(store, run):
     # Read those archives without requiring the retired website generator.
     for name in ("source_state", "graph"):
         row = store.db.execute(
-            "SELECT payload_json FROM artifacts WHERE run_id=? AND name=?", (run, name)
+            select(source_artifacts.c.payload_json).where(
+                source_artifacts.c.run_id == run, source_artifacts.c.name == name
+            )
         ).fetchone()
         if row:
             return json.loads(row[0])
@@ -130,82 +142,129 @@ def snapshot_state(store, run):
 
 
 def write_database(store, run, path):
-    public = sqlite3.connect(path)
-    public.executescript(PUBLIC_SCHEMA)
+    public = Database(path)
+    try:
+        _write_database(store, run, public)
+    finally:
+        public.close()
+
+
+def _write_database(store, run, public):
+    archive_schema.create_all(
+        public.connection,
+        tables=[
+            table
+            for table in archive_schema.sorted_tables
+            if not table.name.startswith("enrichment_")
+            and table.name not in {"release_enrichments", "course_enrichment_runs"}
+        ],
+    )
+    for statement in PUBLIC_VIEWS:
+        public.execute(statement)
     history = [
         row[0]
         for row in store.db.execute(
-            "SELECT run_id FROM runs WHERE status='complete' OR run_id=? ORDER BY observed_at,run_id",
-            (run,),
+            select(source_runs.c.run_id)
+            .where((source_runs.c.status == "complete") | (source_runs.c.run_id == run))
+            .order_by(source_runs.c.observed_at, source_runs.c.run_id),
         )
     ]
     with public:
         for identifier in history:
             info = store.run(identifier)
             public.execute(
-                "INSERT INTO runs VALUES(?,?,?,?,?)",
-                (
-                    identifier,
-                    info["semester"],
-                    info["observed_at"],
-                    info["origin"],
-                    info["source_revision"],
-                ),
+                insert(archive_schema.tables["runs"]).values(
+                    {
+                        "run_id": identifier,
+                        "semester": info["semester"],
+                        "observed_at": info["observed_at"],
+                        "origin": info["origin"],
+                        "source_revision": info["source_revision"],
+                    }
+                )
             )
             public.executemany(
-                "INSERT INTO observations VALUES(?,?,?,?,?,?,?,?)",
+                insert(archive_schema.tables["observations"]),
                 [
-                    tuple(row)
+                    {
+                        "run_id": row["run_id"],
+                        "source": row["source"],
+                        "kind": row["kind"],
+                        "entity_id": row["entity_id"],
+                        "source_url": row["source_url"],
+                        "observed_at": row["observed_at"],
+                        "content_hash": row["content_hash"],
+                        "payload_json": row["payload_json"],
+                    }
                     for row in store.db.execute(
-                        "SELECT * FROM observations WHERE run_id=? ORDER BY source,kind,entity_id",
-                        (identifier,),
+                        select(source_observations)
+                        .where(source_observations.c.run_id == identifier)
+                        .order_by(
+                            source_observations.c.source,
+                            source_observations.c.kind,
+                            source_observations.c.entity_id,
+                        ),
                     )
                 ],
             )
             subjects = store.records(identifier, "subjects")
             public.executemany(
-                "INSERT INTO subjects VALUES(?,?,?)",
-                [(identifier, k, v["name"]) for k, v in subjects.items()],
+                insert(archive_schema.tables["subjects"]),
+                [
+                    {"run_id": identifier, "subject_id": k, "name": v["name"]}
+                    for (k, v) in subjects.items()
+                ],
             )
             for key, value in store.records(identifier, "courses").items():
                 from .history import write_course
 
                 write_course(public, identifier, key, value)
                 public.executemany(
-                    "INSERT INTO course_subjects VALUES(?,?,?)",
+                    insert(archive_schema.tables["course_subjects"]),
                     [
-                        (identifier, key, s)
+                        {"run_id": identifier, "course_id": key, "subject_id": s}
                         for s in value["course_reference"]["subjects"]
                     ],
                 )
             public.executemany(
-                "INSERT INTO terms VALUES(?,?,?)",
+                insert(archive_schema.tables["terms"]),
                 [
-                    (identifier, k, v["name"])
-                    for k, v in store.records(identifier, "terms").items()
+                    {"run_id": identifier, "term_id": k, "name": v["name"]}
+                    for (k, v) in store.records(identifier, "terms").items()
                 ],
             )
+            if not store.records(identifier, "courses"):
+                continue  # Auxiliary history retains observations without course projections.
             state = snapshot_state(store, identifier)
             for key, value in state["instructors"].items():
                 public.execute(
-                    "INSERT INTO instructors VALUES(?,?,?,?,?,?,?,?)",
-                    (
-                        identifier,
-                        key,
-                        value["name"],
-                        value["email"],
-                        value["official_name"],
-                        value["department"],
-                        value["position"],
-                        canonical(value),
-                    ),
+                    insert(archive_schema.tables["instructors"]).values(
+                        {
+                            "run_id": identifier,
+                            "instructor_id": key,
+                            "name": value["name"],
+                            "email": value["email"],
+                            "official_name": value["official_name"],
+                            "department": value["department"],
+                            "position": value["position"],
+                            "details_json": canonical(value),
+                        }
+                    )
                 )
             for key, value in state["courses"].items():
                 for term, term_data in value["term_data"].items():
                     if term_data["grade_data"]:
                         public.execute(
-                            "INSERT INTO grades VALUES(?,?,?,?)",
-                            (identifier, key, term, canonical(term_data["grade_data"])),
+                            insert(archive_schema.tables["grades"]).values(
+                                {
+                                    "run_id": identifier,
+                                    "course_id": key,
+                                    "term_id": term,
+                                    "distribution_json": canonical(
+                                        term_data["grade_data"]
+                                    ),
+                                }
+                            )
                         )
             aliases = {
                 (subject, value["course_reference"]["course_number"]): key
@@ -215,44 +274,51 @@ def write_database(store, run, path):
             for key, value in store.records(identifier, "offerings").items():
                 hit = value["hit"]
                 public.execute(
-                    "INSERT INTO offerings VALUES(?,?,?,?,?,?,?,?)",
-                    (
-                        identifier,
-                        key,
-                        value["term"],
-                        next(
-                            (
-                                aliases[
-                                    (
+                    insert(archive_schema.tables["offerings"]).values(
+                        {
+                            "run_id": identifier,
+                            "offering_id": key,
+                            "term_id": value["term"],
+                            "course_id": next(
+                                (
+                                    aliases[
+                                        subject,
+                                        value["course_reference"]["course_number"],
+                                    ]
+                                    for subject in value["course_reference"]["subjects"]
+                                    if (
                                         subject,
                                         value["course_reference"]["course_number"],
                                     )
-                                ]
-                                for subject in value["course_reference"]["subjects"]
-                                if (subject, value["course_reference"]["course_number"])
-                                in aliases
+                                    in aliases
+                                ),
+                                None,
                             ),
-                            None,
-                        ),
-                        str(hit["courseId"]),
-                        str(hit["subject"]["subjectCode"]),
-                        canonical(value["course_reference"]),
-                        canonical(hit),
-                    ),
+                            "source_course_id": str(hit["courseId"]),
+                            "source_subject_id": str(hit["subject"]["subjectCode"]),
+                            "course_reference_json": canonical(
+                                value["course_reference"]
+                            ),
+                            "details_json": canonical(hit),
+                        }
+                    )
                 )
                 for package in value["sections"]:
                     for section in package["sections"]:
                         sid = f"{section['type']}:{section['sectionNumber']}"
                         public.execute(
-                            "INSERT OR IGNORE INTO sections VALUES(?,?,?,?,?,?)",
-                            (
-                                identifier,
-                                key,
-                                sid,
-                                section["type"],
-                                str(section["sectionNumber"]),
-                                canonical(section),
-                            ),
+                            insert(archive_schema.tables["sections"])
+                            .on_conflict_do_nothing()
+                            .values(
+                                {
+                                    "run_id": identifier,
+                                    "offering_id": key,
+                                    "section_id": sid,
+                                    "section_type": section["type"],
+                                    "section_number": str(section["sectionNumber"]),
+                                    "details_json": canonical(section),
+                                }
+                            )
                         )
                         from uwcourses.sanitization import sanitize_instructor_id
 
@@ -262,30 +328,49 @@ def write_database(store, run, path):
                             if instructor_id not in state["instructors"]:
                                 instructor_id = None
                             public.execute(
-                                "INSERT OR IGNORE INTO section_instructors VALUES(?,?,?,?,?)",
-                                (identifier, key, sid, name, instructor_id),
+                                insert(archive_schema.tables["section_instructors"])
+                                .on_conflict_do_nothing()
+                                .values(
+                                    {
+                                        "run_id": identifier,
+                                        "offering_id": key,
+                                        "section_id": sid,
+                                        "instructor_name": name,
+                                        "instructor_id": instructor_id,
+                                    }
+                                )
                             )
             for key, meetings in state["meetings"].items():
                 for meeting in meetings:
                     encoded = canonical(meeting)
                     public.execute(
-                        "INSERT INTO meetings VALUES(?,?,?,?,?,?)",
-                        (
-                            identifier,
-                            key,
-                            hashlib.sha256(encoded.encode()).hexdigest(),
-                            meeting["start_time"],
-                            meeting["end_time"],
-                            encoded,
-                        ),
+                        insert(archive_schema.tables["meetings"]).values(
+                            {
+                                "run_id": identifier,
+                                "course_id": key,
+                                "meeting_id": hashlib.sha256(
+                                    encoded.encode()
+                                ).hexdigest(),
+                                "start_time": meeting["start_time"],
+                                "end_time": meeting["end_time"],
+                                "details_json": encoded,
+                            }
+                        )
                     )
             public.executemany(
-                "INSERT INTO derived_artifacts VALUES(?,?,?,?,?)",
+                insert(archive_schema.tables["derived_artifacts"]),
                 [
-                    tuple(row)
+                    {
+                        "run_id": row["run_id"],
+                        "name": row["name"],
+                        "input_hash": row["input_hash"],
+                        "config_json": row["config_json"],
+                        "payload_json": row["payload_json"],
+                    }
                     for row in store.db.execute(
-                        "SELECT * FROM artifacts WHERE run_id=? ORDER BY name",
-                        (identifier,),
+                        select(source_artifacts)
+                        .where(source_artifacts.c.run_id == identifier)
+                        .order_by(source_artifacts.c.name),
                     )
                 ],
             )
@@ -305,14 +390,20 @@ def write_database(store, run, path):
             "derived_artifacts",
         ):
             public.execute(
-                f"CREATE VIEW current_{table} AS SELECT * FROM {table} WHERE run_id='{run}'"
+                f"CREATE VIEW current_{table} AS SELECT * FROM {table} WHERE run_id="
+                + str(
+                    literal(run).compile(
+                        dialect=public.connection.dialect,
+                        compile_kwargs={"literal_binds": True},
+                    )
+                )
             )
     if public.execute("PRAGMA foreign_key_check").fetchall():
         raise ValueError("Public snapshot contains broken references")
     if public.execute("PRAGMA integrity_check").fetchone()[0] != "ok":
         raise ValueError("Public snapshot failed integrity check")
     public.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
-    public.close()
+    public.commit()
 
 
 def write_parquet(database, directory):

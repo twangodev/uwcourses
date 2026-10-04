@@ -5,6 +5,9 @@ import json
 import jsonschema
 
 from .course_context import CourseContext, CourseLookup
+from sqlalchemy import select
+from .schema import results
+
 from .models import digest
 from .store import Store
 from .unified import validate_section
@@ -47,8 +50,9 @@ class ReuseIndex:
                     self.contexts[run] = CourseContext(source, run)
                 self.jobs[job["job_id"]] = (job, spec)
                 for row in jobs.db.execute(
-                    "SELECT course_id,output_json,status FROM results WHERE job_id=?",
-                    (job["job_id"],),
+                    select(
+                        results.c.course_id, results.c.output_json, results.c.status
+                    ).where(results.c.job_id == job["job_id"]),
                 ):
                     if row["status"] != "complete" or not row["output_json"]:
                         raise ValueError("Reuse job has incomplete outputs")

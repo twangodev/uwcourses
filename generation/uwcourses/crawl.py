@@ -10,6 +10,10 @@ from scrapy.crawler import CrawlerProcess
 from scrapy.http import Response
 from scrapy.utils.request import fingerprint
 
+from sqlalchemy import select, delete
+from sqlalchemy.dialects.sqlite import insert
+
+from .schema import responses
 from .store import Store, now
 
 
@@ -29,8 +33,11 @@ class ArchiveMiddleware:
 
     def process_request(self, request):
         row = self.store.db.execute(
-            "SELECT * FROM responses WHERE run_id=? AND source=? AND fingerprint=?",
-            (self.run, self.source, fingerprint(request).hex()),
+            select(responses).where(
+                responses.c.run_id == self.run,
+                responses.c.source == self.source,
+                responses.c.fingerprint == fingerprint(request).hex(),
+            ),
         ).fetchone()
         if row:
             body = gzip.decompress((self.directory / row["body_hash"]).read_bytes())
@@ -58,18 +65,34 @@ class ArchiveMiddleware:
                 temporary.replace(path)
             with self.store.db:
                 self.store.db.execute(
-                    "INSERT OR REPLACE INTO responses VALUES(?,?,?,?,?,?,?,?)",
-                    (
-                        self.run,
-                        self.source,
-                        fingerprint(request).hex(),
-                        response.url,
-                        response.status,
-                        response.headers.get(
+                    insert(responses)
+                    .values(
+                        run_id=self.run,
+                        source=self.source,
+                        fingerprint=fingerprint(request).hex(),
+                        url=response.url,
+                        status=response.status,
+                        content_type=response.headers.get(
                             "Content-Type", b"application/octet-stream"
                         ).decode(),
-                        body_hash,
-                        now(),
+                        body_hash=body_hash,
+                        fetched_at=now(),
+                    )
+                    .on_conflict_do_update(
+                        index_elements=[
+                            responses.c.run_id,
+                            responses.c.source,
+                            responses.c.fingerprint,
+                        ],
+                        set_={
+                            "url": response.url,
+                            "status": response.status,
+                            "content_type": response.headers.get(
+                                "Content-Type", b"application/octet-stream"
+                            ).decode(),
+                            "body_hash": body_hash,
+                            "fetched_at": now(),
+                        },
                     ),
                 )
         return response
@@ -79,8 +102,11 @@ class ArchiveMiddleware:
         # Retry it from the origin on resume instead of permanently replaying it.
         with self.store.db:
             self.store.db.execute(
-                "DELETE FROM responses WHERE run_id=? AND source=? AND fingerprint=?",
-                (self.run, self.source, fingerprint(response.request).hex()),
+                delete(responses).where(
+                    responses.c.run_id == self.run,
+                    responses.c.source == self.source,
+                    responses.c.fingerprint == fingerprint(response.request).hex(),
+                ),
             )
 
 
@@ -99,8 +125,11 @@ class DatabasePipeline:
         except Exception:
             with self.store.db:
                 self.store.db.execute(
-                    "DELETE FROM responses WHERE run_id=? AND source=? AND url=?",
-                    (self.run, self.source, item.get("source_url")),
+                    delete(responses).where(
+                        responses.c.run_id == self.run,
+                        responses.c.source == self.source,
+                        responses.c.url == item.get("source_url"),
+                    ),
                 )
             raise
         return item

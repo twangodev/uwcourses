@@ -10,6 +10,10 @@ import subprocess
 import sys
 
 from .models import canonical
+from sqlalchemy import select, update, literal
+from sqlalchemy.dialects.sqlite import insert
+
+from .schema import runs, stages, responses
 from .store import SOURCES, Store
 
 
@@ -187,8 +191,9 @@ def execute(store, run):
     except Exception:
         with store.db:
             store.db.execute(
-                "UPDATE runs SET status='failed' WHERE run_id=? AND status!='complete'",
-                (run,),
+                update(runs)
+                .where(runs.c.run_id == run, runs.c.status != "complete")
+                .values(status="failed"),
             )
         raise
 
@@ -345,8 +350,12 @@ def main(argv=None):
                         "stages": [
                             dict(r)
                             for r in store.db.execute(
-                                "SELECT stage,status,error,updated_at FROM stages WHERE run_id=?",
-                                (args.run_id,),
+                                select(
+                                    stages.c.stage,
+                                    stages.c.status,
+                                    stages.c.error,
+                                    stages.c.updated_at,
+                                ).where(stages.c.run_id == args.run_id),
                             )
                         ],
                     }
@@ -414,8 +423,19 @@ def main(argv=None):
                 run = store.new_run(info["semester"], config)
                 with store.db:
                     store.db.execute(
-                        "INSERT INTO responses SELECT ?,source,fingerprint,url,status,content_type,body_hash,fetched_at FROM responses WHERE run_id=?",
-                        (run, args.run_id),
+                        insert(responses).from_select(
+                            list(responses.c.keys()),
+                            select(
+                                literal(run),
+                                responses.c.source,
+                                responses.c.fingerprint,
+                                responses.c.url,
+                                responses.c.status,
+                                responses.c.content_type,
+                                responses.c.body_hash,
+                                responses.c.fetched_at,
+                            ).where(responses.c.run_id == args.run_id),
+                        ),
                     )
                 print(f"Created replay run {run}", flush=True)
                 for source in SOURCES[: SOURCES.index(args.source) + 1]:

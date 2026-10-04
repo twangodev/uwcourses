@@ -3,6 +3,10 @@
 import json
 import shutil
 
+from sqlalchemy import select, update
+from sqlalchemy.dialects.sqlite import insert
+
+from .schema import runs, observations
 from .models import canonical, digest
 from .store import Store, SOURCES
 
@@ -21,7 +25,9 @@ def scrape(store, run):
             "Scraper code changed; use replay to create a snapshot with new parser provenance"
         )
     with store.db:
-        store.db.execute("UPDATE runs SET status='running' WHERE run_id=?", (run,))
+        store.db.execute(
+            update(runs).where(runs.c.run_id == run).values(status="running")
+        )
     failures = []
     # Independent sources continue even if another source fails.
     for source in config["sources"]:
@@ -33,7 +39,9 @@ def scrape(store, run):
             failures.append(source)
     if failures:
         with store.db:
-            store.db.execute("UPDATE runs SET status='failed' WHERE run_id=?", (run,))
+            store.db.execute(
+                update(runs).where(runs.c.run_id == run).values(status="failed")
+            )
         raise RuntimeError(
             f"Sources failed: {', '.join(failures)}; completed sources are checkpointed"
         )
@@ -62,6 +70,14 @@ def scrape(store, run):
 def require_snapshot(store, run):
     if store.run(run)["status"] != "complete":
         raise ValueError("Processing requires a completed immutable source snapshot")
+    if not store.db.execute(
+        select(observations.c.entity_id)
+        .where(observations.c.run_id == run, observations.c.kind == "courses")
+        .limit(1)
+    ).fetchone():
+        raise ValueError(
+            "Processing requires a course snapshot; auxiliary source runs cannot replace courses"
+        )
 
 
 def release(store, run, enrichment_ids=()):
@@ -87,7 +103,9 @@ def _release(store, run, enrichment_ids):
         history = [
             (row["run_id"], store.input_hash(row["run_id"]))
             for row in store.db.execute(
-                "SELECT run_id FROM runs WHERE status='complete' ORDER BY run_id"
+                select(runs.c.run_id)
+                .where(runs.c.status == "complete")
+                .order_by(runs.c.run_id)
             )
         ]
         from .history import select_enrichments
@@ -212,12 +230,14 @@ def prepare_source_refresh(store, source_run, refreshed_source, source_workspace
                 raise ValueError(f"Cannot reuse incomplete source: {stage}")
             with store.db:
                 store.db.executemany(
-                    "INSERT INTO observations VALUES(?,?,?,?,?,?,?,?)",
+                    insert(observations),
                     (
-                        (run, *tuple(row)[1:])
+                        {**dict(row), "run_id": run}
                         for row in source.db.execute(
-                            "SELECT * FROM observations WHERE run_id=? AND source=?",
-                            (source_run, stage),
+                            select(observations).where(
+                                observations.c.run_id == source_run,
+                                observations.c.source == stage,
+                            ),
                         )
                     ),
                 )

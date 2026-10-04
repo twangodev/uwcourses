@@ -3,6 +3,9 @@
 import json
 import re
 
+from sqlalchemy import select
+from .schema import observations
+
 from .models import digest
 
 
@@ -56,8 +59,9 @@ class CourseContext:
         self.courses = store.records(run, "courses")
         self.sources = dict(
             store.db.execute(
-                "SELECT entity_id,source_url FROM observations WHERE run_id=? AND kind='courses' ORDER BY entity_id,source",
-                (run,),
+                select(observations.c.entity_id, observations.c.source_url)
+                .where(observations.c.run_id == run, observations.c.kind == "courses")
+                .order_by(observations.c.entity_id, observations.c.source),
             )
         )
         self.aliases = {}
@@ -69,8 +73,9 @@ class CourseContext:
         self.reviews = {}
         terms = store.records(run, "terms")
         for row in store.db.execute(
-            "SELECT payload_json FROM observations WHERE run_id=? AND kind='grades' ORDER BY entity_id",
-            (run,),
+            select(observations.c.payload_json)
+            .where(observations.c.run_id == run, observations.c.kind == "grades")
+            .order_by(observations.c.entity_id),
         ):
             grade = json.loads(row[0])
             ref = grade["course_reference"]
