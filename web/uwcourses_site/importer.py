@@ -124,10 +124,7 @@ def verify(source):
         declared = manifest["files"][rel]
         with path.open("rb") as file:
             checksum = hashlib.file_digest(file, "sha256").hexdigest()
-        if (
-            path.stat().st_size != declared["bytes"]
-            or checksum != declared["sha256"]
-        ):
+        if path.stat().st_size != declared["bytes"] or checksum != declared["sha256"]:
             raise ValueError(f"Checksum mismatch: {rel}")
     return manifest
 
