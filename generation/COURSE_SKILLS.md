@@ -75,3 +75,38 @@ Serving records add optional official outcomes and cited skill/activity data.
 Older v6 datasets import with empty new fields. Course pages render the evidence
 in initial HTML; search accepts the activity taxonomy tokens documented in the
 classification guide.
+
+## Outcomes-only publication supplement
+
+`uwcourses outcomes-refresh` prepares an independently sourced supplement for a
+pinned, existing Parquet publication. Supply an audited evidence JSONL and source
+manifest from the archived Guide responses. Each record binds an exact current
+course identity, title, description and requirements to source bytes; the command
+checks the archived hash, context, catalog year, fetch date and numbered outcome
+statements again. Responses must predate the original catalog observation.
+
+```sh
+uv run --locked uwcourses outcomes-refresh \
+  --publication /path/to/current-publication \
+  --fallback /path/to/matching-source-release \
+  --evidence-jsonl /path/to/archive-course-outcomes.jsonl \
+  --evidence-manifest /path/to/source-manifest.json \
+  --parent-revision PINNED_HF_SHA --output /path/to/new-candidate
+```
+
+Only the optional outcomes column in `public/courses_current.parquet` and its
+schema declaration change. All existing course fields, catalog identities,
+historical rows, archive tables, grades, schedules, instructors and enrichment
+outputs retain their existing values. Typed supplemental outcome records and
+the original compressed Guide bodies retain separate provenance. Original scan
+timestamps stay unchanged; replay is not a new source observation. Experimental
+inference output is never attached by this command.
+
+After reviewing and importing the concrete candidate, publication is an explicit
+separate command. It rejects a changed remote parent, commits the files atomically
+and verifies the resulting remote file set and every checksum:
+
+```sh
+uv run --locked uwcourses outcomes-publish --candidate /path/to/new-candidate \
+  --repo twangodev/uwcourses --parent-revision PINNED_HF_SHA
+```

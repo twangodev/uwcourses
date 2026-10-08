@@ -138,6 +138,27 @@ def parser():
         "public-export",
         help="Build public Parquet tables from a verified archive",
     ).add_argument("release_id")
+    outcomes = commands.add_parser(
+        "outcomes-refresh",
+        help="Prepare an outcomes-only supplement without changing existing course data",
+    )
+    outcomes.add_argument("--publication", type=Path, required=True)
+    outcomes.add_argument("--evidence-jsonl", type=Path, required=True)
+    outcomes.add_argument("--evidence-manifest", type=Path, required=True)
+    outcomes.add_argument("--parent-revision", required=True)
+    outcomes.add_argument("--output", type=Path, required=True)
+    outcomes.add_argument(
+        "--fallback",
+        type=Path,
+        help="Verified matching archive for files absent from the local publication",
+    )
+    publish_outcomes = commands.add_parser(
+        "outcomes-publish",
+        help="Explicitly publish a reviewed outcomes supplement with a pinned parent guard",
+    )
+    publish_outcomes.add_argument("--candidate", type=Path, required=True)
+    publish_outcomes.add_argument("--repo", required=True)
+    publish_outcomes.add_argument("--parent-revision", required=True)
     models = commands.add_parser("models-lock")
     models.add_argument("--models-config", type=Path, required=True)
     models.add_argument("--profile", action="append", required=True)
@@ -226,6 +247,29 @@ def execute_run(store, run):
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == "outcomes-refresh":
+        from .outcomes_refresh import refresh_outcomes
+
+        print(
+            canonical(
+                refresh_outcomes(
+                    args.publication,
+                    args.evidence_jsonl,
+                    args.evidence_manifest,
+                    args.parent_revision,
+                    args.output,
+                    args.fallback,
+                )
+            )
+        )
+        return
+    if args.command == "outcomes-publish":
+        from .outcomes_refresh import publish_outcomes
+
+        print(
+            canonical(publish_outcomes(args.candidate, args.repo, args.parent_revision))
+        )
+        return
     for name in ("run_id", "job_id"):
         value = getattr(args, name, None)
         if value and not re.fullmatch(r"[A-Za-z0-9_-]+", value):
