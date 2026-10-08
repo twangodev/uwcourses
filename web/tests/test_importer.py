@@ -11,6 +11,226 @@ from uwcourses_site.search_projection import TABLES as SEARCH_TABLES
 
 
 class PublicationTests(unittest.TestCase):
+    def test_shared_identity_retains_distinct_outcome_sources(self):
+        first = {
+            "text": "Communicate research findings.",
+            "source": "catalog",
+            "source_url": "https://guide.wisc.edu/courses/e_m_a/",
+            "observed_at": "2026-09-06T22:01:24+00:00",
+        }
+        second = {
+            **first,
+            "source_url": "https://guide.wisc.edu/courses/m_e/",
+            "observed_at": "2026-09-06T22:01:06+00:00",
+        }
+        merged = importer.variant_outcomes(
+            [
+                {"official_learning_outcomes_json": json.dumps([first])},
+                {"official_learning_outcomes_json": json.dumps([first, second])},
+            ]
+        )
+        course = importer.course_learning_fields(
+            {
+                "official_learning_outcomes_json": merged,
+                "llm_search_status": "valid",
+                "llm_skills": ["Existing skill"],
+            }
+        )
+        self.assertEqual(course["official_learning_outcomes"], [first, second])
+        self.assertEqual(course["llm_skills"], ["Existing skill"])
+
+    def test_official_outcomes_require_source_identity_and_typed_context(self):
+        for value in (
+            {"text": "Write programs"},
+            {"text": "Write programs", "source": "catalog", "source_url": ""},
+            {
+                "text": "Write programs",
+                "source": "catalog",
+                "source_url": "https://guide.wisc.edu/",
+                "term": 1272,
+            },
+        ):
+            with (
+                self.subTest(value=value),
+                self.assertRaisesRegex(ValueError, "learning field"),
+            ):
+                importer.course_learning_fields(
+                    {"official_learning_outcomes_json": json.dumps([value])}
+                )
+
+    def test_learning_fields_are_optional_and_preserve_citations(self):
+        self.assertEqual(
+            importer.course_learning_fields({})["official_learning_outcomes"], []
+        )
+        claim = {
+            "text": "programming",
+            "evidence": [
+                {
+                    "field": "description",
+                    "course_id": "COMPSCI 300",
+                    "quote": "Write programs",
+                    "source_url": "https://guide.wisc.edu/courses/comp_sci/",
+                }
+            ],
+        }
+        outcome = {
+            "text": "Write programs",
+            "source": "guide",
+            "source_url": "https://guide.wisc.edu/courses/comp_sci/",
+        }
+        course = importer.course_learning_fields(
+            {
+                "llm_search_status": "valid",
+                "course_id": "COMPSCI 300",
+                "description": "Write programs",
+                "source_url": "https://guide.wisc.edu/courses/comp_sci/",
+                "official_learning_outcomes_json": json.dumps([outcome]),
+                "llm_skills_evidence_json": json.dumps([claim]),
+                "llm_activity_tags_json": json.dumps([claim]),
+            }
+        )
+        self.assertEqual(course["official_learning_outcomes"], [outcome])
+        self.assertEqual(course["skills_taught"], [claim])
+        self.assertEqual(course["activity_tags"], [claim])
+        self.assertNotIn("llm_skills_evidence_json", course)
+        rejected = importer.course_learning_fields(
+            {
+                "llm_search_status": "invalid",
+                "llm_activity_tags_json": json.dumps([claim]),
+            }
+        )
+        self.assertEqual(rejected["activity_tags"], [])
+        with self.assertRaisesRegex(ValueError, "learning field"):
+            importer.course_learning_fields(
+                {"official_learning_outcomes_json": '["uncited text"]'}
+            )
+
+    def test_grounding_drops_stale_and_fabricated_claims(self):
+        import copy
+
+        url = "https://guide.wisc.edu/courses/comp_sci/"
+        course = {
+            "course_id": "COMPSCI 300",
+            "source_url": url,
+            "description": "Write programs using objects.",
+            "official_learning_outcomes": [
+                {"text": "Implement programs", "source_url": url, "source": "catalog"},
+                {"text": "Analyze programs", "source_url": url, "source": "catalog"},
+            ],
+        }
+        citation = {
+            "course_id": "COMPSCI 300",
+            "field": "official_learning_outcomes",
+            "outcome_index": 0,
+            "quote": "Implement programs",
+            "source_url": url,
+        }
+        valid = {"label": "programming", "evidence": [citation]}
+        self.assertEqual(
+            importer.grounded_learning_claims([valid], course, activities=True)[0][
+                "text"
+            ],
+            "programming",
+        )
+        cases = [
+            {"outcome_index": 1},
+            {"outcome_index": -1},
+            {"outcome_index": True},
+            {"source_url": "https://example.com/"},
+            {"quote": "Fabricated"},
+            {"course_id": "MATH 300"},
+        ]
+        for change in cases:
+            with self.subTest(change=change):
+                self.assertEqual(
+                    importer.grounded_learning_claims(
+                        [{**valid, "evidence": [{**citation, **change}]}],
+                        course,
+                        activities=True,
+                    ),
+                    [],
+                )
+        reordered = copy.deepcopy(course)
+        reordered["official_learning_outcomes"].reverse()
+        self.assertEqual(
+            importer.grounded_learning_claims([valid], reordered, activities=True), []
+        )
+        self.assertEqual(
+            importer.grounded_learning_claims(
+                [{**valid, "label": "easy"}], course, activities=True
+            ),
+            [],
+        )
+        description = {
+            "text": "Program with objects",
+            "evidence": [
+                {
+                    "course_id": "COMPSCI 300",
+                    "field": "description",
+                    "quote": "Write programs",
+                    "source_url": url,
+                }
+            ],
+        }
+        self.assertEqual(
+            len(importer.grounded_learning_claims([description], course)), 1
+        )
+        self.assertEqual(
+            importer.grounded_learning_claims(
+                [description], {**course, "description": "Different text"}
+            ),
+            [],
+        )
+        self.assertEqual(
+            importer.grounded_learning_claims(
+                [description], {**course, "source_url": "https://example.com"}
+            ),
+            [],
+        )
+
+    def test_rejected_claim_clears_search_terms_but_old_releases_remain_compatible(
+        self,
+    ):
+        url = "https://guide.wisc.edu/courses/comp_sci/"
+        course = importer.course_learning_fields(
+            {
+                "course_id": "COMPSCI 300",
+                "description": "Current description",
+                "source_url": url,
+                "llm_search_status": "valid",
+                "llm_summary": "OBSOLETELEARNING",
+                "llm_topics": ["OBSOLETELEARNING"],
+                "llm_skills": ["OBSOLETELEARNING"],
+                "llm_search_phrases": ["OBSOLETELEARNING"],
+                "llm_skills_evidence_json": json.dumps(
+                    [
+                        {
+                            "text": "OBSOLETELEARNING",
+                            "evidence": [
+                                {
+                                    "field": "description",
+                                    "course_id": "COMPSCI 300",
+                                    "quote": "Previous description",
+                                    "source_url": url,
+                                }
+                            ],
+                        }
+                    ]
+                ),
+            }
+        )
+        self.assertEqual(course["llm_search_status"], "stale_evidence")
+        self.assertNotIn("OBSOLETELEARNING", json.dumps(course))
+        old_release = importer.course_learning_fields(
+            {
+                "llm_search_status": "valid",
+                "llm_skills": ["Legacy skill"],
+                "llm_topics": ["Legacy topic"],
+            }
+        )
+        self.assertEqual(old_release["llm_skills"], ["Legacy skill"])
+        self.assertEqual(old_release["llm_topics"], ["Legacy topic"])
+
     def test_invalid_source_preserves_existing_generated_data(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

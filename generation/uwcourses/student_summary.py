@@ -4,6 +4,9 @@ import copy
 import json
 import re
 
+from sqlalchemy import select
+from .schema import results
+
 from .models import digest
 from .student_context import grade_sentence
 from .course_context import sample_reviews
@@ -66,8 +69,9 @@ def summary_seeds(jobs, ids, run, *, allow_partial=False):
             )
         job_profile = json.loads(job["spec_json"])["profile"]
         for row in jobs.db.execute(
-            "SELECT course_id,output_json FROM results WHERE job_id=? AND status=?",
-            (job["job_id"], "complete"),
+            select(results.c.course_id, results.c.output_json).where(
+                results.c.job_id == job["job_id"], results.c.status == "complete"
+            ),
         ):
             original = json.loads(row["output_json"])
             profile = dict(job_profile)

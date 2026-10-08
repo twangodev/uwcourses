@@ -9,8 +9,10 @@ import unittest
 import pyarrow as pa
 import pyarrow.parquet as pq
 
-from uwcourses.history import ENRICHMENT_SCHEMA, write_course
-from uwcourses.models import canonical
+from uwcourses.database import Database
+from uwcourses.schema import archive
+from uwcourses.history import ENRICHMENT_VIEWS, write_course
+from uwcourses.models import canonical, digest
 from uwcourses.public_data import (
     SCHEMAS,
     catalog_record,
@@ -19,8 +21,60 @@ from uwcourses.public_data import (
     write_public,
     write_rows,
     selected_enrichments,
+    grounded_learning_claims,
+    enrich_fields,
 )
-from uwcourses.release import PUBLIC_SCHEMA, write_parquet
+from uwcourses.release import PUBLIC_VIEWS, write_parquet
+
+
+class LegacySkillsTests(unittest.TestCase):
+    def test_legacy_projection_does_not_claim_new_cited_skill_contract(self):
+        from uwcourses_site.importer import course_learning_fields
+
+        for skills in (
+            ["Programming"],
+            [
+                {
+                    "text": "Programming",
+                    "evidence": [
+                        {
+                            "course_id": "COMPSCI 300",
+                            "field": "description",
+                            "quote": "Write programs.",
+                        }
+                    ],
+                }
+            ],
+        ):
+            with self.subTest(skills=skills):
+                row = {
+                    "job_id": "old",
+                    "output_id": "old",
+                    "model": "old",
+                    "model_revision": "a" * 40,
+                    "output_json": canonical(
+                        {
+                            "task_version": 16,
+                            "sections": {
+                                "search_profile": {
+                                    "status": "valid",
+                                    "value": {
+                                        "summary": "Existing summary",
+                                        "skills_taught": skills,
+                                    },
+                                }
+                            },
+                        }
+                    ),
+                }
+                projected = enrich_fields(row)
+                self.assertNotIn("llm_skills_evidence_json", projected)
+                course = course_learning_fields(
+                    {**projected, "course_id": "COMPSCI 300"}
+                )
+                self.assertEqual(course["llm_skills"], ["Programming"])
+                self.assertEqual(course["llm_search_status"], "valid")
+                self.assertEqual(course["llm_summary"], "Existing summary")
 
 
 class PublicDataTests(unittest.TestCase):
@@ -28,9 +82,10 @@ class PublicDataTests(unittest.TestCase):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)
         self.database = self.root / "archive.sqlite"
-        self.db = sqlite3.connect(self.database)
-        self.db.executescript(PUBLIC_SCHEMA)
-        self.db.executescript(ENRICHMENT_SCHEMA)
+        self.db = Database(self.database)
+        archive.create_all(self.db.connection)
+        for statement in PUBLIC_VIEWS + ENRICHMENT_VIEWS:
+            self.db.execute(statement)
         self.record = {
             "course_reference": {"subjects": ["COMPSCI"], "course_number": 300},
             "course_title": "Programming II",
@@ -177,6 +232,293 @@ class PublicDataTests(unittest.TestCase):
             catalog_record("COMPSCI 300", modified)["catalog_version_id"],
             history[0]["catalog_version_id"],
         )
+
+    def test_official_outcomes_and_cited_skills_survive_public_export(self):
+        outcome = {
+            "text": "Implement object-oriented programs.",
+            "source": "enrollment",
+            "source_url": "https://public.enroll.wisc.edu/api/search/v1/example",
+            "observed_at": "2026-09-01T00:00:00+00:00",
+            "term": "1272",
+            "catalog_year": None,
+        }
+        record = {**self.record, "official_learning_outcomes": [outcome]}
+        version_id = digest(record)
+        self.db.execute(
+            "INSERT INTO course_versions VALUES(?,?,?,?,?,?)",
+            (
+                version_id,
+                300,
+                record["course_title"],
+                record["description"],
+                canonical(record["prerequisites"]),
+                canonical(record),
+            ),
+        )
+        self.db.execute(
+            "UPDATE course_snapshots SET version_id=? WHERE run_id=? AND course_id=?",
+            (version_id, "new", "COMPSCI 300"),
+        )
+        self.add_job("selected", 1)
+        row = self.db.execute(
+            "SELECT output_json FROM enrichment_outputs WHERE output_id=?",
+            ("selected",),
+        ).fetchone()
+        output = json.loads(row[0])
+        claim = {
+            "text": "Implement object-oriented programs",
+            "evidence": [
+                {
+                    "field": "official_learning_outcomes",
+                    "course_id": "COMPSCI 300",
+                    "outcome_index": 0,
+                    "quote": outcome["text"],
+                    "source_url": outcome["source_url"],
+                    **{
+                        key: outcome.get(key)
+                        for key in ("source", "observed_at", "term", "catalog_year")
+                    },
+                }
+            ],
+        }
+        profile = output["sections"]["search_profile"]["value"]
+        profile["skills_taught"] = [claim]
+        profile["activity_tags"] = [
+            {"label": "programming", "evidence": claim["evidence"]}
+        ]
+        self.db.execute(
+            "UPDATE enrichment_outputs SET output_json=? WHERE output_id=?",
+            (canonical(output), "selected"),
+        )
+        self.db.commit()
+        destination, _ = self.export()
+        course = pq.read_table(
+            destination / "public/courses_current.parquet"
+        ).to_pylist()[0]
+        self.assertEqual(
+            json.loads(course["official_learning_outcomes_json"]), [outcome]
+        )
+        observations = pq.read_table(
+            destination / "public/course_observations.parquet"
+        ).to_pylist()
+        current_observation = next(
+            item for item in observations if item["run_id"] == "new"
+        )
+        self.assertEqual(
+            current_observation["catalog_version_id"], course["catalog_version_id"]
+        )
+
+        history = pq.read_table(
+            destination / "public/courses_history.parquet"
+        ).to_pylist()
+        self.assertEqual(
+            json.loads(
+                next(item for item in history if item["run_id"] == "new")[
+                    "official_learning_outcomes_json"
+                ]
+            ),
+            [outcome],
+        )
+        versions = pq.read_table(
+            destination / "public/catalog_versions.parquet"
+        ).to_pylist()
+        self.assertTrue(
+            any(
+                json.loads(item["official_learning_outcomes_json"]) == [outcome]
+                for item in versions
+            )
+        )
+        self.assertEqual(json.loads(course["llm_skills_evidence_json"]), [claim])
+        self.assertEqual(course["llm_activity_tags"], ["programming"])
+        self.assertEqual(
+            json.loads(course["llm_activity_tags_json"]),
+            [
+                {
+                    "label": "programming",
+                    "text": "programming",
+                    "evidence": claim["evidence"],
+                }
+            ],
+        )
+
+    def test_grounding_drops_stale_and_fabricated_claims(self):
+        import copy
+
+        url = "https://guide.wisc.edu/courses/comp_sci/"
+        course = {
+            "course_id": "COMPSCI 300",
+            "source_url": url,
+            "description": "Write programs using objects.",
+            "official_learning_outcomes": [
+                {"text": "Implement programs", "source_url": url, "source": "catalog"},
+                {"text": "Analyze programs", "source_url": url, "source": "catalog"},
+            ],
+        }
+        citation = {
+            "course_id": "COMPSCI 300",
+            "field": "official_learning_outcomes",
+            "outcome_index": 0,
+            "quote": "Implement programs",
+            "source_url": url,
+        }
+        valid = {"label": "programming", "evidence": [citation]}
+        self.assertEqual(
+            grounded_learning_claims([valid], course, activities=True)[0]["text"],
+            "programming",
+        )
+        cases = [
+            {"outcome_index": 1},
+            {"outcome_index": -1},
+            {"outcome_index": True},
+            {"source_url": "https://example.com/"},
+            {"quote": "Fabricated"},
+            {"course_id": "MATH 300"},
+        ]
+        for change in cases:
+            with self.subTest(change=change):
+                self.assertEqual(
+                    grounded_learning_claims(
+                        [{**valid, "evidence": [{**citation, **change}]}],
+                        course,
+                        activities=True,
+                    ),
+                    [],
+                )
+        reordered = copy.deepcopy(course)
+        reordered["official_learning_outcomes"].reverse()
+        self.assertEqual(
+            grounded_learning_claims([valid], reordered, activities=True), []
+        )
+        self.assertEqual(
+            grounded_learning_claims(
+                [{**valid, "label": "easy"}], course, activities=True
+            ),
+            [],
+        )
+        description = {
+            "text": "Program with objects",
+            "evidence": [
+                {
+                    "course_id": "COMPSCI 300",
+                    "field": "description",
+                    "quote": "Write programs",
+                    "source_url": url,
+                }
+            ],
+        }
+        self.assertEqual(len(grounded_learning_claims([description], course)), 1)
+        self.assertEqual(
+            grounded_learning_claims(
+                [description], {**course, "description": "Different text"}
+            ),
+            [],
+        )
+        self.assertEqual(
+            grounded_learning_claims(
+                [description], {**course, "source_url": "https://example.com"}
+            ),
+            [],
+        )
+
+    def test_cross_run_changed_catalog_clears_entire_search_profile(self):
+        self.add_job("selected", 1, title="OBSOLETELEARNING")
+        self.db.execute(
+            "UPDATE course_enrichment_runs SET run_id='old' WHERE job_id='selected'"
+        )
+        self.db.execute("DROP VIEW current_courses")
+        self.db.execute("CREATE VIEW current_courses AS SELECT * FROM courses")
+        output = json.loads(
+            self.db.execute(
+                "SELECT output_json FROM enrichment_outputs WHERE output_id='selected'"
+            ).fetchone()[0]
+        )
+        output["sections"]["search_profile"]["value"]["topics"] = [
+            {"text": "OBSOLETELEARNING"}
+        ]
+        output["sections"]["search_profile"]["value"]["search_phrases"] = [
+            "OBSOLETELEARNING"
+        ]
+        self.db.execute(
+            "UPDATE enrichment_outputs SET output_json=? WHERE output_id='selected'",
+            (canonical(output),),
+        )
+        record = {
+            **self.record,
+            "official_learning_outcomes": [
+                {
+                    "text": "Analyze current data",
+                    "source": "catalog",
+                    "source_url": "https://guide.wisc.edu/courses/comp_sci/",
+                }
+            ],
+        }
+        version = digest(record)
+        self.db.execute(
+            "INSERT INTO course_versions VALUES(?,?,?,?,?,?)",
+            (
+                version,
+                300,
+                record["course_title"],
+                record["description"],
+                canonical(record["prerequisites"]),
+                canonical(record),
+            ),
+        )
+        self.db.execute(
+            "UPDATE course_snapshots SET version_id=? WHERE run_id='new'", (version,)
+        )
+        self.db.commit()
+        destination, _ = self.export()
+        row = pq.read_table(destination / "public/courses_current.parquet").to_pylist()[
+            0
+        ]
+        self.assertEqual(row["llm_search_status"], "stale_evidence")
+        self.assertIsNone(row["llm_summary"])
+        self.assertEqual(row["llm_topics"], [])
+        self.assertEqual(row["llm_search_phrases"], [])
+        self.assertNotIn("OBSOLETELEARNING", json.dumps(row, default=str))
+
+    def test_cross_run_unchanged_catalog_retains_legacy_profile(self):
+        self.add_job("selected", 1)
+        self.db.execute(
+            "UPDATE course_enrichment_runs SET run_id='old' WHERE job_id='selected'"
+        )
+        self.db.execute("DROP VIEW current_courses")
+        self.db.execute("CREATE VIEW current_courses AS SELECT * FROM courses")
+        self.db.commit()
+        destination, _ = self.export()
+        row = pq.read_table(destination / "public/courses_current.parquet").to_pylist()[
+            0
+        ]
+        self.assertEqual(row["llm_search_status"], "valid")
+        self.assertEqual(row["llm_summary"], "Object oriented programming")
+        self.assertEqual(row["llm_topics"], ["Objects"])
+        self.assertEqual(row["llm_search_phrases"], ["java programming"])
+
+    def test_legacy_plain_skills_survive_reexport_and_serving_import(self):
+        from uwcourses_site.importer import course_learning_fields
+
+        self.add_job("selected", 1)
+        output = json.loads(
+            self.db.execute(
+                "SELECT output_json FROM enrichment_outputs WHERE output_id='selected'"
+            ).fetchone()[0]
+        )
+        output["sections"]["search_profile"]["value"]["skills_taught"] = ["Programming"]
+        self.db.execute(
+            "UPDATE enrichment_outputs SET output_json=? WHERE output_id='selected'",
+            (canonical(output),),
+        )
+        self.db.commit()
+        destination, _ = self.export()
+        row = pq.read_table(destination / "public/courses_current.parquet").to_pylist()[
+            0
+        ]
+        self.assertIsNone(row["llm_skills_evidence_json"])
+        course = course_learning_fields(row)
+        self.assertEqual(course["llm_skills"], ["Programming"])
+        self.assertEqual(course["llm_search_status"], "valid")
+        self.assertEqual(course["llm_search_phrases"], ["java programming"])
 
     def test_typed_grades_deduplicate_snapshots_and_keep_missing_counts_null(self):
         output, counts = self.export()
@@ -361,7 +703,6 @@ class PublicDataTests(unittest.TestCase):
 
     def test_selected_projection_does_not_retain_raw_traces(self):
         self.add_job("selected", 1)
-        self.db.row_factory = sqlite3.Row
         selected = selected_enrichments(self.db)
         self.assertTrue(selected)
         for value in selected.values():

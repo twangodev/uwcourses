@@ -2,6 +2,12 @@
 
 import json
 
+from sqlalchemy.dialects.sqlite import insert
+
+from .schema import jobs as job_table, results
+from sqlalchemy import select
+
+
 from .models import canonical, digest
 from .profiles import load_profile
 from .store import now
@@ -39,7 +45,9 @@ def create_repair(
     profile.thinking = True
     rows = []
     for row in jobs.db.execute(
-        "SELECT * FROM results WHERE job_id=? ORDER BY course_id", (parent_id,)
+        select(results)
+        .where(results.c.job_id == parent_id)
+        .order_by(results.c.course_id)
     ):
         output = json.loads(row["output_json"])
         if any(
@@ -90,8 +98,15 @@ def create_repair(
     job = "enrich-" + digest({"source_run": parent["source_run"], "spec": spec})[:24]
     with jobs.db:
         jobs.db.execute(
-            "INSERT OR IGNORE INTO jobs VALUES(?,?,?,'pending',?)",
-            (job, parent["source_run"], canonical(spec), now()),
+            insert(job_table)
+            .values(
+                job_id=job,
+                source_run=parent["source_run"],
+                spec_json=canonical(spec),
+                status="pending",
+                created_at=now(),
+            )
+            .on_conflict_do_nothing(index_elements=[job_table.c.job_id]),
         )
         for row in rows:
             payload = json.loads(row["input_json"])
@@ -110,7 +125,16 @@ def create_repair(
                 }
             )
             jobs.db.execute(
-                "INSERT OR IGNORE INTO results(job_id,course_id,cache_key,input_json,status) VALUES(?,?,?,?,'pending')",
-                (job, row["course_id"], cache_key, canonical(payload)),
+                insert(results)
+                .values(
+                    job_id=job,
+                    course_id=row["course_id"],
+                    cache_key=cache_key,
+                    input_json=canonical(payload),
+                    status="pending",
+                )
+                .on_conflict_do_nothing(
+                    index_elements=[results.c.job_id, results.c.course_id]
+                ),
             )
     return job

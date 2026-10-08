@@ -5,6 +5,10 @@ import subprocess
 from datetime import datetime, timezone
 from pathlib import PurePosixPath
 
+from sqlalchemy import select
+from sqlalchemy.dialects.sqlite import insert
+
+from .schema import runs, observations, artifacts
 from .models import CourseReference, canonical, digest, validate_record
 from .store import now
 
@@ -28,7 +32,7 @@ def import_revision(store, repository, revision):
         .strip()
     )
     run = f"legacy-{commit}"
-    if store.db.execute("SELECT 1 FROM runs WHERE run_id=?", (run,)).fetchone():
+    if store.db.execute(select(runs.c.run_id).where(runs.c.run_id == run)).fetchone():
         return {"run_id": run, "status": "already_imported"}
     entries = git(repository, "ls-tree", "-rz", commit).split(b"\0")
     selected = []
@@ -117,16 +121,16 @@ def import_revision(store, repository, revision):
                 {"kind": kind, "key": key, "source_url": source_url, "payload": payload}
             )
             rows.append(
-                (
-                    run,
-                    "legacy",
-                    kind,
-                    key,
-                    source_url,
-                    observed,
-                    digest(payload),
-                    canonical(payload),
-                )
+                {
+                    "run_id": run,
+                    "source": "legacy",
+                    "kind": kind,
+                    "entity_id": key,
+                    "source_url": source_url,
+                    "observed_at": observed,
+                    "content_hash": digest(payload),
+                    "payload_json": canonical(payload),
+                }
             )
     provenance = {
         "origin": "legacy",
@@ -145,18 +149,26 @@ def import_revision(store, repository, revision):
     semester = max(enrollment_terms or terms.keys())
     with store.db:
         store.db.execute(
-            "INSERT INTO runs(run_id,semester,started_at,completed_at,status,config_json,observed_at,origin,source_revision) VALUES(?,?,?,?,'complete',?,?,'legacy',?)",
-            (run, semester, now(), now(), canonical(provenance), observed, commit),
+            insert(runs).values(
+                run_id=run,
+                semester=semester,
+                started_at=now(),
+                completed_at=now(),
+                status="complete",
+                config_json=canonical(provenance),
+                observed_at=observed,
+                origin="legacy",
+                source_revision=commit,
+            ),
         )
-        store.db.executemany("INSERT INTO observations VALUES(?,?,?,?,?,?,?,?)", rows)
+        store.db.executemany(insert(observations), rows)
         store.db.execute(
-            "INSERT INTO artifacts VALUES(?,?,?,?,?)",
-            (
-                run,
-                "legacy_meetings",
-                digest(meetings),
-                canonical(provenance),
-                canonical(meetings),
+            insert(artifacts).values(
+                run_id=run,
+                name="legacy_meetings",
+                input_hash=digest(meetings),
+                config_json=canonical(provenance),
+                payload_json=canonical(meetings),
             ),
         )
     return {

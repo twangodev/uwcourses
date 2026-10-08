@@ -22,7 +22,7 @@ from .campus import CampusSchedule
 
 ROOT = Path.cwd()
 REPO = "twangodev/uwcourses"
-IMPORTER_VERSION = "9"
+IMPORTER_VERSION = "10"
 GRADES = ["a", "ab", "b", "bc", "c", "d", "f"]
 WEIGHTS = [4, 3.5, 3, 2.5, 2, 1, 0]
 MAX_CHUNK = 1024 * 1024
@@ -113,7 +113,15 @@ def verify(source):
         rel = f"public/{name}.parquet"
         path = source / rel
         actual = pq.ParquetFile(path)
-        for col, typ in table["columns"].items():
+        columns = dict(table["columns"])
+        columns.update(
+            {
+                key: typ
+                for key, typ in table.get("optional_columns", {}).items()
+                if key in actual.schema_arrow.names
+            }
+        )
+        for col, typ in columns.items():
             if (
                 str(actual.schema_arrow.field(col).type).replace("element:", "item:")
                 != typ
@@ -127,6 +135,171 @@ def verify(source):
         if path.stat().st_size != declared["bytes"] or checksum != declared["sha256"]:
             raise ValueError(f"Checksum mismatch: {rel}")
     return manifest
+
+
+def clear_learning_search(course):
+    """A rejected source-bound claim invalidates its entire selected search profile."""
+    course["llm_search_status"] = "stale_evidence"
+    course["llm_summary"] = None
+    for field in (
+        "llm_topics",
+        "llm_skills",
+        "llm_assumed_background",
+        "llm_search_phrases",
+        "llm_activity_tags",
+        "skills_taught",
+        "activity_tags",
+    ):
+        course[field] = []
+    for field in ("llm_skills_evidence_json", "llm_activity_tags_json"):
+        if field in course:
+            course[field] = "[]"
+
+
+ACTIVITY_LABELS = {
+    "programming",
+    "data-analysis",
+    "mathematical-reasoning",
+    "writing",
+    "lab-work",
+    "presentations",
+}
+
+
+def grounded_learning_claims(claims, course, *, activities=False):
+    """Only release claims whose citations still identify current official text."""
+    outcomes = course.get("official_learning_outcomes") or []
+    result = []
+    if not isinstance(claims, list):
+        return result
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        label = (
+            claim.get("label", claim.get("text")) if activities else claim.get("text")
+        )
+        evidence = claim.get("evidence")
+        if (
+            not isinstance(label, str)
+            or not label.strip()
+            or not isinstance(evidence, list)
+            or not evidence
+        ):
+            continue
+        if activities and label not in ACTIVITY_LABELS:
+            continue
+        citations = []
+        for citation in evidence:
+            if not isinstance(citation, dict) or citation.get(
+                "course_id"
+            ) != course.get("course_id"):
+                break
+            quote = citation.get("quote")
+            if not isinstance(quote, str) or not quote.strip():
+                break
+            field = citation.get("field")
+            if field == "official_learning_outcomes":
+                index = citation.get("outcome_index")
+                if (
+                    not isinstance(index, int)
+                    or isinstance(index, bool)
+                    or not 0 <= index < len(outcomes)
+                ):
+                    break
+                source = outcomes[index]
+                if (
+                    not source.get("source_url")
+                    or citation.get("source_url") != source["source_url"]
+                    or quote not in source["text"]
+                ):
+                    break
+                citations.append(
+                    {
+                        **citation,
+                        **{
+                            key: source.get(key)
+                            for key in (
+                                "source",
+                                "source_url",
+                                "observed_at",
+                                "term",
+                                "catalog_year",
+                            )
+                        },
+                    }
+                )
+            elif field == "description":
+                if (
+                    "outcome_index" in citation
+                    or not course.get("source_url")
+                    or citation.get("source_url") != course["source_url"]
+                    or quote not in (course.get("description") or "")
+                ):
+                    break
+                citations.append(dict(citation))
+            else:
+                break
+        else:
+            result.append({**claim, "text": label, "evidence": citations})
+    return result
+
+
+def variant_outcomes(variants):
+    """Retain source records from aliases already grouped by the identity registry."""
+    result, seen = [], set()
+    for variant in variants:
+        values = json.loads(variant.get("official_learning_outcomes_json") or "[]")
+        if not isinstance(values, list):
+            raise ValueError(
+                "Invalid course learning field: official_learning_outcomes_json"
+            )
+        for value in values:
+            key = json.dumps(value, sort_keys=True)
+            if key not in seen:
+                result.append(value)
+                seen.add(key)
+    return json.dumps(result)
+
+
+def course_learning_fields(course):
+    """Read additive enrichment fields, retaining compatibility with older v6 releases."""
+    has_cited_skills = course.get("llm_skills_evidence_json") is not None
+    for target, source in (
+        ("official_learning_outcomes", "official_learning_outcomes_json"),
+        ("skills_taught", "llm_skills_evidence_json"),
+        ("activity_tags", "llm_activity_tags_json"),
+    ):
+        values = json.loads(course.pop(source, None) or "[]")
+        if not isinstance(values, list) or any(
+            not isinstance(item, dict) or not isinstance(item.get("text"), str)
+            for item in values
+        ):
+            raise ValueError(f"Invalid course learning field: {source}")
+        if target == "official_learning_outcomes":
+            for item in values:
+                if any(
+                    not isinstance(item.get(key), str) or not item[key].strip()
+                    for key in ("text", "source", "source_url")
+                ) or any(
+                    item.get(key) is not None and not isinstance(item[key], str)
+                    for key in ("observed_at", "term", "catalog_year")
+                ):
+                    raise ValueError(
+                        f"Invalid course learning field: {source}; missing source identity or invalid context"
+                    )
+        course[target] = values
+    if course.get("llm_search_status") != "valid":
+        course["skills_taught"], course["activity_tags"] = [], []
+    candidates = len(course["skills_taught"]) + len(course["activity_tags"])
+    course["skills_taught"] = grounded_learning_claims(course["skills_taught"], course)
+    course["activity_tags"] = grounded_learning_claims(
+        course["activity_tags"], course, activities=True
+    )
+    if len(course["skills_taught"]) + len(course["activity_tags"]) != candidates:
+        clear_learning_search(course)
+    if has_cited_skills:
+        course["llm_skills"] = [claim["text"] for claim in course["skills_taught"]]
+    return course
 
 
 def chunks(base, revision, kind, uid, records):
@@ -233,6 +406,8 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
     courses = {uid: dict(rs[0]) for uid, rs in variants.items()}
     for uid, c in courses.items():
         c["catalog_variants"] = variants[uid] if len(variants[uid]) > 1 else []
+        if len(variants[uid]) > 1:
+            c["official_learning_outcomes_json"] = variant_outcomes(variants[uid])
         c["subjects"] = sorted(
             {subject for r in variants[uid] for subject in r["subjects"]}
         )
@@ -361,6 +536,7 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
     departments = defaultdict(list)
     summaries = []
     for uid, c in courses.items():
+        course_learning_fields(c)
         c["student_summary"] = json.loads(c["llm_student_summary_json"] or "{}")
         c["requirements"] = json.loads(c["llm_requirements_ast_json"] or "{}")
         if not c["requirements"].get("nodes"):
@@ -416,10 +592,17 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
                 encode(c),
             ),
         )
-        search_text = c["description"] or ""
+        search_text = (
+            (c["description"] or "")
+            + " "
+            + " ".join(outcome["text"] for outcome in c["official_learning_outcomes"])
+        )
         if c["llm_search_status"] == "valid":
             search_text += " " + " ".join(
-                c["llm_topics"] + c["llm_skills"] + c["llm_search_phrases"]
+                c["llm_topics"]
+                + c["llm_skills"]
+                + c["llm_search_phrases"]
+                + [item["text"].replace("-", " ") for item in c["activity_tags"]]
             )
         db.execute(
             "INSERT INTO search VALUES(?,?,?,?,?)",

@@ -7,6 +7,8 @@
     citationNumbers,
   } from "$lib/citations";
   import { courseFitObservations } from "$lib/course-fit";
+  import { supportedLearningClaims } from "$lib/course-learning";
+  import { courseLearningRelease } from "$lib/course-learning-release";
   import type { Citation } from "$lib/types";
   import CourseNavigation from "$lib/components/CourseNavigation.svelte";
   import TermPicker from "$lib/components/TermPicker.svelte";
@@ -18,6 +20,7 @@
   import Claims from "$lib/components/Claims.svelte";
   import RotatingClaims from "$lib/components/RotatingClaims.svelte";
   import CourseSources from "$lib/components/CourseSources.svelte";
+  import CourseLearning from "$lib/components/CourseLearning.svelte";
   import Evidence from "$lib/components/Evidence.svelte";
   import InstructorStats from "$lib/components/InstructorStats.svelte";
   import CourseContext from "$lib/components/CourseContext.svelte";
@@ -270,6 +273,20 @@
     title={courseTitle(c.title)}
     heading={courseHeading}
     content={courseWorkspace}
+    learning={Boolean(
+      c.official_learning_outcomes?.length ||
+      (courseLearningRelease.derivedClaims &&
+        (supportedLearningClaims(
+          c.skills_taught || [],
+          c.official_learning_outcomes || [],
+          c.description || "",
+        ).length ||
+          supportedLearningClaims(
+            c.activity_tags || [],
+            c.official_learning_outcomes || [],
+            c.description || "",
+          ).length)),
+    )}
     bind:navigationHeight
   >
     {#if data.context}
@@ -372,6 +389,12 @@
       </CourseSection>
     </aside>
     <div class="course-content">
+      <CourseLearning
+        outcomes={c.official_learning_outcomes || []}
+        skills={c.skills_taught || []}
+        activities={c.activity_tags || []}
+        description={c.description || ""}
+      />
       <CourseSection title="Prerequisites" id="requirements">
         {#snippet tools()}<a
             class="prerequisite-map-link"

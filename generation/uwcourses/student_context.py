@@ -12,6 +12,9 @@ from uwcourses.name_matcher import (
 )
 from .course_context import sample_reviews
 from .dataset_shape import instructor_identity
+from sqlalchemy import select
+from .schema import observations
+
 from .models import digest
 
 POINTS = {"a": 4, "ab": 3.5, "b": 3, "bc": 2.5, "c": 2, "d": 1, "f": 0}
@@ -170,8 +173,9 @@ class StudentContext:
         )
         self.ratings = {}
         for row in store.db.execute(
-            "SELECT entity_id,payload_json FROM observations WHERE run_id=? AND kind='ratings'",
-            (run,),
+            select(observations.c.entity_id, observations.c.payload_json).where(
+                observations.c.run_id == run, observations.c.kind == "ratings"
+            ),
         ):
             record = json.loads(row["payload_json"])
             teacher = next(

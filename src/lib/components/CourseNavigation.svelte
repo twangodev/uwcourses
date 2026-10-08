@@ -15,6 +15,7 @@
     content,
     navigationHeight = $bindable(43),
     children,
+    learning = false,
   }: {
     code: string;
     title: string;
@@ -22,6 +23,7 @@
     content?: HTMLElement;
     navigationHeight?: number;
     children: Snippet;
+    learning?: boolean;
   } = $props();
   let container: HTMLDivElement;
   let active = $state("overview");
@@ -87,15 +89,18 @@
       window.removeEventListener("scroll", schedule);
     };
   });
-  const links = [
+  const links = $derived([
     { id: "overview", label: "overview", icon: BookOpen },
+    ...(learning
+      ? [{ id: "learning", label: "learning", icon: BookOpen }]
+      : []),
     { id: "requirements", label: "prerequisites", icon: GitBranch },
     { id: "professors", label: "professors", icon: Users },
     { id: "schedule", label: "calendar", icon: CalendarDays },
     { id: "experience", label: "student experience", icon: BookOpen },
     { id: "grades", label: "grades", icon: ChartColumn },
     { id: "evidence", label: "sources", icon: Layers },
-  ];
+  ]);
 </script>
 
 <div

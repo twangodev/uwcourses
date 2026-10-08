@@ -5,6 +5,9 @@ import json
 import jsonschema
 
 from .course_context import CourseContext, CourseLookup
+from sqlalchemy import select
+from .schema import results
+
 from .models import digest
 from .store import Store
 from .unified import validate_section
@@ -15,13 +18,26 @@ FACT_FIELDS = (
     "course_reference",
     "title",
     "description",
+    "official_learning_outcomes",
     "requirements_text",
     "linked_courses",
 )
 
 
 def facts(value):
-    return {key: value.get(key) for key in FACT_FIELDS} if value is not None else None
+    if value is None:
+        return None
+    result = {key: value.get(key) for key in FACT_FIELDS}
+    # A repeated fetch does not change what the source says. Keep record order:
+    # outcome citations use indexes, so reordering must invalidate prior outputs.
+    result["official_learning_outcomes"] = [
+        {
+            key: outcome.get(key)
+            for key in ("text", "source", "source_url", "term", "catalog_year")
+        }
+        for outcome in value.get("official_learning_outcomes") or []
+    ]
+    return result
 
 
 class ReuseIndex:
@@ -47,8 +63,9 @@ class ReuseIndex:
                     self.contexts[run] = CourseContext(source, run)
                 self.jobs[job["job_id"]] = (job, spec)
                 for row in jobs.db.execute(
-                    "SELECT course_id,output_json,status FROM results WHERE job_id=?",
-                    (job["job_id"],),
+                    select(
+                        results.c.course_id, results.c.output_json, results.c.status
+                    ).where(results.c.job_id == job["job_id"]),
                 ):
                     if row["status"] != "complete" or not row["output_json"]:
                         raise ValueError("Reuse job has incomplete outputs")
@@ -82,6 +99,12 @@ class ReuseIndex:
                     lookup.get_course(call["course_id"], call["from_course"])
             sections, origins = {}, {}
             for name in ("search_profile", "requirements"):
+                if name == "search_profile" and spec["task"].get(
+                    "search_profile_evidence_version", 1
+                ) < self.task.get("search_profile_evidence_version", 1):
+                    # Old descriptions-only tasks never examined outcomes or
+                    # activities, even when the archive already contained them.
+                    continue
                 section = previous.get("sections", {}).get(name, {})
                 if (
                     section.get("status") not in {"valid", "needs_review"}

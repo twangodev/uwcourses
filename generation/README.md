@@ -95,7 +95,40 @@ Replay runs sources up through the selected source offline; missing archived
 responses fail explicitly. Resume collects the remaining sources normally. Keep
 an active scraper on its original checkout and uv environment until it finishes.
 
+## Database maintenance
+
+The generation pipeline uses SQLAlchemy Core over SQLite. Named tables live in
+`generation/uwcourses/schema.py`; snapshot, job, response-cache, and release writes
+use explicit columns. SQLite-specific views and analytical export queries remain
+SQL. Core and those queries share one connection and transaction through
+`generation/uwcourses/database.py`.
+
+Writable `Store` and `Jobs` opens automatically apply Alembic migrations under an
+exclusive SQLite migration transaction. Existing pipeline schemas v1/v2 and the
+original processing schema are recognized and baselined without copying observation
+or result tables. Read-only opens do not migrate or stamp databases. Unknown schemas
+are rejected. Keep active scraping/inference commands on their original checkout
+until they finish before upgrading the workspace.
+
+Private migrations live in `generation/uwcourses/migrations/versions/` and are
+forward-only. Add a revision for each schema or view change; preserve old revision
+files. The existing SQLite `user_version` remains 2 for snapshot compatibility;
+`alembic_version` tracks subsequent private revisions. Disposable release databases
+keep their independent archive schema version and contain no migration bookkeeping.
+
+The live `current_*` views select the latest completed run containing course
+observations. Auxiliary source runs cannot activate empty course projections or
+serve as enrichment/release course snapshots. Their observations remain available
+in release history. Records with conflicting payloads from multiple sources require
+an explicit source selection. Term records retain the existing precedence explicitly:
+Madgrades, then enrollment, then legacy. A source refresh still requires explicit
+enrichment reuse; changing database libraries does not rebind generated results.
+
 ## Optional processing
+
+For official learning outcomes, cited skills, and the source-only pilot, see
+[COURSE_SKILLS.md](COURSE_SKILLS.md). The optional local System 1 classifier and
+its held-out acceptance gates are documented in [CLASSIFICATION.md](CLASSIFICATION.md).
 
 Model profiles live in `inference/models.toml`. Pin the selected profiles once;
 both clients and server launchers use the resulting JSON file:

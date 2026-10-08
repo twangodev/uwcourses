@@ -8,6 +8,7 @@ it("publishes resolvable schemas with unique operations for every document forma
   );
   expect(new Set(ids).size).toBe(41);
   expect(spec.paths["/api/facets"]).toBeDefined();
+  expect(spec.paths["/api/search"].get.parameters.map((parameter: any) => parameter.name)).not.toContain("activity");
   function walk(value: unknown) {
     if (!value || typeof value !== "object") return;
     if ("$ref" in value) {

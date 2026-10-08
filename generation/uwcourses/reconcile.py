@@ -37,12 +37,16 @@ def reconcile(store, run):
         find_best_structured_match,
     )
     from uwcourses.sanitization import sanitize_instructor_id
+    from uwcourses.learning_outcomes import course_outcome_map
 
     EnrollmentData.MeetingLocation._all_locations.clear()
     courses = {
         Course.Reference.from_json(data["course_reference"]): Course.from_json(data)
         for data in store.records(run, "courses").values()
     }
+    outcome_map = course_outcome_map(store, run)
+    for ref, course in courses.items():
+        course.official_learning_outcomes = outcome_map[ref.get_identifier()]
     aliases = {}
     for ref in courses:
         for subject in ref.subjects:

@@ -5,6 +5,8 @@
   import { Search, X } from "@lucide/svelte";
   import { goto } from "$app/navigation";
   import { activeCourseFilters } from "$lib/course-filter-ui";
+  import { activityLabels } from "$lib/course-learning";
+  import { courseLearningRelease } from "$lib/course-learning-release";
   import SearchInput from "./SearchInput.svelte";
   import Select from "./Select.svelte";
   import FacetSelect from "./FacetSelect.svelte";
@@ -33,7 +35,13 @@
   let draft = $state<URLSearchParams | null>(null);
   let navigationError = $state("");
   let filters = $derived(
-    draft ? Object.fromEntries(draft) : results.filters || {},
+    Object.fromEntries(
+      Object.entries(
+        draft ? Object.fromEntries(draft) : results.filters || {},
+      ).filter(
+        ([key]) => key !== "activity" || courseLearningRelease.activitySearch,
+      ),
+    ),
   );
   let active = $derived(
     activeCourseFilters(
@@ -110,6 +118,20 @@
     onRequest={facets.requestGroup}
   >
     {#snippet context()}
+      {#if courseLearningRelease.activitySearch}
+        <Select
+          label="Learning activity"
+          value={filters.activity || ""}
+          options={[
+            { value: "", label: "All learning activities" },
+            ...Object.entries(activityLabels).map(([value, label]) => ({
+              value,
+              label,
+            })),
+          ]}
+          onChange={(value) => change({ activity: value })}
+        />
+      {/if}
       {#if !subject}
         <FacetSelect
           label="Department"

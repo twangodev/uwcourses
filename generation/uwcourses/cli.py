@@ -10,6 +10,10 @@ import subprocess
 import sys
 
 from .models import canonical
+from sqlalchemy import select, update, literal
+from sqlalchemy.dialects.sqlite import insert
+
+from .schema import runs, stages, responses
 from .store import SOURCES, Store
 
 
@@ -134,10 +138,45 @@ def parser():
         "public-export",
         help="Build public Parquet tables from a verified archive",
     ).add_argument("release_id")
+    outcomes = commands.add_parser(
+        "outcomes-refresh",
+        help="Prepare an outcomes-only supplement without changing existing course data",
+    )
+    outcomes.add_argument("--publication", type=Path, required=True)
+    outcomes.add_argument("--evidence-jsonl", type=Path, required=True)
+    outcomes.add_argument("--evidence-manifest", type=Path, required=True)
+    outcomes.add_argument("--parent-revision", required=True)
+    outcomes.add_argument("--output", type=Path, required=True)
+    outcomes.add_argument(
+        "--fallback",
+        type=Path,
+        help="Verified matching archive for files absent from the local publication",
+    )
+    publish_outcomes = commands.add_parser(
+        "outcomes-publish",
+        help="Explicitly publish a reviewed outcomes supplement with a pinned parent guard",
+    )
+    publish_outcomes.add_argument("--candidate", type=Path, required=True)
+    publish_outcomes.add_argument("--repo", required=True)
+    publish_outcomes.add_argument("--parent-revision", required=True)
     models = commands.add_parser("models-lock")
     models.add_argument("--models-config", type=Path, required=True)
     models.add_argument("--profile", action="append", required=True)
     models.add_argument("--output", type=Path, required=True)
+    classify = commands.add_parser(
+        "classifier-predict",
+        help="Run pinned optional Laya inference on manually labeled evidence JSONL",
+    )
+    classify.add_argument("--input", type=Path, required=True)
+    classify.add_argument("--output", type=Path, required=True)
+    classify.add_argument("--revision", required=True)
+    classify.add_argument("--device")
+    evaluate = commands.add_parser(
+        "classifier-evaluate",
+        help="Evaluate supplied predictions without loading any model",
+    )
+    evaluate.add_argument("--input", type=Path, required=True)
+    evaluate.add_argument("--output", type=Path, required=True)
     crawl = commands.add_parser("_crawl")
     crawl.add_argument("run_id")
     crawl.add_argument("source", choices=SOURCES)
@@ -187,8 +226,9 @@ def execute(store, run):
     except Exception:
         with store.db:
             store.db.execute(
-                "UPDATE runs SET status='failed' WHERE run_id=? AND status!='complete'",
-                (run,),
+                update(runs)
+                .where(runs.c.run_id == run, runs.c.status != "complete")
+                .values(status="failed"),
             )
         raise
 
@@ -207,10 +247,46 @@ def execute_run(store, run):
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == "outcomes-refresh":
+        from .outcomes_refresh import refresh_outcomes
+
+        print(
+            canonical(
+                refresh_outcomes(
+                    args.publication,
+                    args.evidence_jsonl,
+                    args.evidence_manifest,
+                    args.parent_revision,
+                    args.output,
+                    args.fallback,
+                )
+            )
+        )
+        return
+    if args.command == "outcomes-publish":
+        from .outcomes_refresh import publish_outcomes
+
+        print(
+            canonical(publish_outcomes(args.candidate, args.repo, args.parent_revision))
+        )
+        return
     for name in ("run_id", "job_id"):
         value = getattr(args, name, None)
         if value and not re.fullmatch(r"[A-Za-z0-9_-]+", value):
             raise ValueError(f"Invalid {name}")
+    if args.command in {"classifier-predict", "classifier-evaluate"}:
+        from .classification import evaluate, predict, read_jsonl, write_jsonl
+
+        rows = read_jsonl(args.input)
+        if args.command == "classifier-predict":
+            write_jsonl(args.output, predict(rows, args.revision, args.device))
+            print(canonical({"predictions": str(args.output), "decisions": len(rows)}))
+        else:
+            report = evaluate(rows)
+            with args.output.open("x") as output:
+                json.dump(report, output, indent=2, sort_keys=True, allow_nan=False)
+            print(canonical(report))
+        return
     if args.command == "models-lock":
         from .profiles import lock_profiles
 
@@ -345,8 +421,12 @@ def main(argv=None):
                         "stages": [
                             dict(r)
                             for r in store.db.execute(
-                                "SELECT stage,status,error,updated_at FROM stages WHERE run_id=?",
-                                (args.run_id,),
+                                select(
+                                    stages.c.stage,
+                                    stages.c.status,
+                                    stages.c.error,
+                                    stages.c.updated_at,
+                                ).where(stages.c.run_id == args.run_id),
                             )
                         ],
                     }
@@ -414,8 +494,19 @@ def main(argv=None):
                 run = store.new_run(info["semester"], config)
                 with store.db:
                     store.db.execute(
-                        "INSERT INTO responses SELECT ?,source,fingerprint,url,status,content_type,body_hash,fetched_at FROM responses WHERE run_id=?",
-                        (run, args.run_id),
+                        insert(responses).from_select(
+                            list(responses.c.keys()),
+                            select(
+                                literal(run),
+                                responses.c.source,
+                                responses.c.fingerprint,
+                                responses.c.url,
+                                responses.c.status,
+                                responses.c.content_type,
+                                responses.c.body_hash,
+                                responses.c.fetched_at,
+                            ).where(responses.c.run_id == args.run_id),
+                        ),
                     )
                 print(f"Created replay run {run}", flush=True)
                 for source in SOURCES[: SOURCES.index(args.source) + 1]:

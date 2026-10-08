@@ -49,11 +49,26 @@ export const citationSchema = named(
     course_id: string.optional(),
   }),
 );
+export const courseEvidenceSchema = named(
+  "CourseEvidence",
+  extensible({
+    course_id: string.optional(),
+    field: z.string(),
+    quote: z.string(),
+    outcome_index: z.number().int().nonnegative().optional(),
+    source_url: string.optional(),
+    source: string.optional(),
+    observed_at: string.optional(),
+    term: string.optional(),
+    catalog_year: string.optional(),
+  }),
+);
 export const claimSchema = named(
   "Claim",
   extensible({
     text: z.string(),
     citations: z.array(citationSchema).optional(),
+    evidence: z.array(courseEvidenceSchema).optional(),
   }),
 );
 export const requirementsSchema = named(
@@ -138,6 +153,17 @@ export const studentSummarySchema = named(
     offered: z.boolean().optional(),
   }),
 );
+export const officialLearningOutcomeSchema = named(
+  "OfficialLearningOutcome",
+  extensible({
+    text: z.string(),
+    source: z.string(),
+    source_url: z.string(),
+    observed_at: string.optional(),
+    term: string.optional(),
+    catalog_year: string.optional(),
+  }),
+);
 export const courseSchema = named(
   "Course",
   extensible({
@@ -147,6 +173,7 @@ export const courseSchema = named(
     course_number: z.number(),
     subjects: z.array(z.string()),
     description: string,
+    source_url: string.optional(),
     requirements_text: string,
     credits_min: number,
     credits_max: number,
@@ -157,6 +184,11 @@ export const courseSchema = named(
     llm_summary: string.optional(),
     llm_topics: z.array(z.string()).nullable().optional(),
     llm_skills: z.array(z.string()).nullable().optional(),
+    official_learning_outcomes: z
+      .array(officialLearningOutcomeSchema)
+      .optional(),
+    skills_taught: z.array(claimSchema).optional(),
+    activity_tags: z.array(claimSchema).optional(),
     llm_assumed_background: z.array(z.string()).nullable().optional(),
     llm_search_phrases: z.array(z.string()).nullable().optional(),
     student_summary: studentSummarySchema.nullable(),
@@ -282,7 +314,10 @@ export const homeDataSchema = named(
 );
 export const directoryDataSchema = named("DirectoryData", z.object({}));
 export const dataSchemas = {
-  Statistics: named("StatisticsData", z.object({ schoolStats: schoolStatsSchema })),
+  Statistics: named(
+    "StatisticsData",
+    z.object({ schoolStats: schoolStatsSchema }),
+  ),
   Course: courseDataSchema,
   Instructor: instructorDataSchema,
   Department: departmentDataSchema,

@@ -1,22 +1,49 @@
 import { describe, expect, it } from "vitest";
+import { DatabaseSync } from "node:sqlite";
 import {
   compileCourseQuery,
   parseCourseFilters,
 } from "../../src/lib/server/course-query";
 
 const term = "1272";
+const experimentalRelease = { derivedClaims: true, activitySearch: true };
 
 function filters(search: string) {
-  return parseCourseFilters(new URLSearchParams(search), term, "offered");
+  return parseCourseFilters(
+    new URLSearchParams(search),
+    term,
+    "offered",
+    experimentalRelease,
+  );
 }
 
 function compile(search: string, availability: "offered" | "all" = "offered") {
   return compileCourseQuery(
-    parseCourseFilters(new URLSearchParams(search), term, availability),
+    parseCourseFilters(
+      new URLSearchParams(search),
+      term,
+      availability,
+      experimentalRelease,
+    ),
+    experimentalRelease,
   );
 }
 
 describe("course filter compiler", () => {
+  it("ignores experimental activity filters in the outcomes-only production release", () => {
+    const query = parseCourseFilters(
+      new URLSearchParams("activity=programming&subject=COMPSCI"),
+      term,
+      "all",
+    );
+    expect(query.activity).toBeUndefined();
+    const compiled = compileCourseQuery({ ...query, activity: "programming" });
+    expect(compiled.where).not.toContain("activity_tags");
+    expect(compiled.values).toEqual(["COMPSCI"]);
+    expect(() =>
+      parseCourseFilters(new URLSearchParams("activity=unknown"), term, "all"),
+    ).not.toThrow();
+  });
   it("accepts boundary values and rejects malformed ones", () => {
     expect(
       filters("gpa_min=4&gpa_max=0&level=0,900&credits_min=0&credits_max=20")
@@ -30,6 +57,8 @@ describe("course filter compiler", () => {
     ).toHaveLength(12);
     for (const search of [
       "tags=easy",
+      "activity=easy",
+      "activity=writing,programming",
       "tags=small-lectures,unknown",
       "gpa_min=nope",
       "gpa_min=4.1",
@@ -59,6 +88,41 @@ describe("course filter compiler", () => {
     expect(compiled.values).toEqual(["small-lectures", "higher-grades"]);
     expect(compiled.where.match(/EXISTS/g)).toHaveLength(2);
     expect(compiled.history).toBe(false);
+  });
+
+  it("binds activity classification and leaves older documents unmatched", () => {
+    const compiled = compile("activity=programming", "all");
+    expect(compiled.where).toContain("json_each(c.payload, '$.activity_tags')");
+    expect(compiled.values).toEqual(["programming"]);
+    expect(compiled.where).not.toContain("programming");
+    expect(filters("activity=writing").activity).toBe("writing");
+  });
+
+  it("matches only the selected activity and tolerates older course payloads", () => {
+    const db = new DatabaseSync(":memory:");
+    try {
+      db.exec("CREATE TABLE courses(uid TEXT,payload TEXT)");
+      const insert = db.prepare("INSERT INTO courses VALUES(?,?)");
+      insert.run("old", JSON.stringify({ description: "Programs" }));
+      insert.run(
+        "writing",
+        JSON.stringify({ activity_tags: [{ text: "writing" }] }),
+      );
+      insert.run(
+        "programming",
+        JSON.stringify({
+          activity_tags: [{ text: "programming", evidence: [] }],
+        }),
+      );
+      const compiled = compile("activity=programming", "all");
+      expect(
+        db
+          .prepare(`SELECT uid FROM courses c WHERE 1=1${compiled.where}`)
+          .all(...(compiled.values as string[])),
+      ).toEqual([{ uid: "programming" }]);
+    } finally {
+      db.close();
+    }
   });
 
   it("compiles graduate bands as course-number ranges", () => {

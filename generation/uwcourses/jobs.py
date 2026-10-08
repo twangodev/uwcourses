@@ -5,18 +5,23 @@ from contextlib import contextmanager
 import json
 import os
 from pathlib import Path
-import sqlite3
 
 import jsonschema
 import requests
 
+from sqlalchemy import select, update, func
+from sqlalchemy.dialects.sqlite import insert
+
+from .database import Database
+from .migrate import upgrade_database
+from .schema import jobs, results, output_cache
 from .models import canonical, digest
 from .profiles import DEFAULT_REQUEST_TIMEOUT_SECONDS, load_profile
 from .tasks import load_task
 from .store import Store, now
 
 
-WORKER_VERSION = 45
+WORKER_VERSION = 48
 
 
 def generation_schema(schema):
@@ -28,6 +33,27 @@ def generation_schema(schema):
     def visit(node):
         if not isinstance(node, dict):
             return
+        properties = node.get("properties", {})
+        field = properties.get("field", {})
+        if (
+            node.get("type") == "object"
+            and {"course_id", "field", "quote", "outcome_index", "source_url"}
+            <= properties.keys()
+            and "official_learning_outcomes" in field.get("enum", [])
+        ):
+            # Disjoint generated citations require outcome provenance while
+            # historical scalar citations retain their compatible public shape.
+            scalar, outcome = copy.deepcopy(node), copy.deepcopy(node)
+            scalar["properties"]["field"]["enum"].remove("official_learning_outcomes")
+            scalar["properties"].pop("outcome_index")
+            outcome["properties"]["field"] = {"const": "official_learning_outcomes"}
+            outcome["required"] = list(
+                dict.fromkeys(
+                    [*outcome.get("required", []), "outcome_index", "source_url"]
+                )
+            )
+            node.clear()
+            node["anyOf"] = [scalar, outcome]
         node.pop("uniqueItems", None)
         for key in (
             "properties",
@@ -107,29 +133,27 @@ class Jobs:
     def __init__(self, root):
         self.root = Path(root)
         self.root.mkdir(parents=True, exist_ok=True)
-        self.db = sqlite3.connect(self.root / "processing.sqlite", timeout=30)
-        self.db.row_factory = sqlite3.Row
-        self.db.execute("PRAGMA foreign_keys=ON")
-        self.db.execute("PRAGMA journal_mode=WAL")
-        self.db.executescript("""
-        CREATE TABLE IF NOT EXISTS jobs(job_id TEXT PRIMARY KEY, source_run TEXT NOT NULL, spec_json TEXT NOT NULL, status TEXT NOT NULL, created_at TEXT NOT NULL);
-        CREATE TABLE IF NOT EXISTS results(job_id TEXT REFERENCES jobs, course_id TEXT, cache_key TEXT NOT NULL, input_json TEXT NOT NULL, status TEXT NOT NULL, output_json TEXT, usage_json TEXT, error TEXT, attempts INTEGER NOT NULL DEFAULT 0, PRIMARY KEY(job_id,course_id));
-        CREATE TABLE IF NOT EXISTS output_cache(cache_key TEXT PRIMARY KEY, output_json TEXT NOT NULL, usage_json TEXT NOT NULL);
-        """)
+        self.db = Database(self.root / "processing.sqlite", timeout=30, wal=True)
+        try:
+            upgrade_database(self.db, "processing")
+        except Exception:
+            self.db.close()
+            raise
 
     def close(self):
         self.db.close()
 
     def status(self, job):
-        row = self.db.execute("SELECT * FROM jobs WHERE job_id=?", (job,)).fetchone()
+        row = self.db.execute(select(jobs).where(jobs.c.job_id == job)).fetchone()
         if row is None:
             raise ValueError("Unknown enrichment job")
         return {
             **dict(row),
             "counts": dict(
                 self.db.execute(
-                    "SELECT status,count(*) FROM results WHERE job_id=? GROUP BY status",
-                    (job,),
+                    select(results.c.status, func.count())
+                    .where(results.c.job_id == job)
+                    .group_by(results.c.status),
                 )
             ),
         }
@@ -256,8 +280,15 @@ class Jobs:
             )
             with self.db:
                 self.db.execute(
-                    "INSERT OR IGNORE INTO jobs VALUES(?,?,?,'pending',?)",
-                    (job, source_run, canonical(spec), now()),
+                    insert(jobs)
+                    .values(
+                        job_id=job,
+                        source_run=source_run,
+                        spec_json=canonical(spec),
+                        status="pending",
+                        created_at=now(),
+                    )
+                    .on_conflict_do_nothing(index_elements=[jobs.c.job_id]),
                 )
                 for key in selected:
                     if student:
@@ -296,8 +327,17 @@ class Jobs:
                         }
                     )
                     self.db.execute(
-                        "INSERT OR IGNORE INTO results(job_id,course_id,cache_key,input_json,status) VALUES(?,?,?,?,'pending')",
-                        (job, key, cache_key, canonical(payload)),
+                        insert(results)
+                        .values(
+                            job_id=job,
+                            course_id=key,
+                            cache_key=cache_key,
+                            input_json=canonical(payload),
+                            status="pending",
+                        )
+                        .on_conflict_do_nothing(
+                            index_elements=[results.c.job_id, results.c.course_id]
+                        ),
                     )
             return job
         finally:
@@ -342,12 +382,13 @@ class Jobs:
                 source.close()
             with self.db:
                 self.db.execute(
-                    "UPDATE jobs SET status='running' WHERE job_id=?", (job,)
+                    update(jobs).where(jobs.c.job_id == job).values(status="running")
                 )
             rows = iter(
                 self.db.execute(
-                    "SELECT * FROM results WHERE job_id=? AND status!='complete' ORDER BY course_id",
-                    (job,),
+                    select(results)
+                    .where(results.c.job_id == job, results.c.status != "complete")
+                    .order_by(results.c.course_id),
                 ).fetchall()
             )
             pending = {}
@@ -355,8 +396,9 @@ class Jobs:
             def submit_next(pool):
                 for row in rows:
                     cached = self.db.execute(
-                        "SELECT output_json,usage_json FROM output_cache WHERE cache_key=?",
-                        (row["cache_key"],),
+                        select(
+                            output_cache.c.output_json, output_cache.c.usage_json
+                        ).where(output_cache.c.cache_key == row["cache_key"]),
                     ).fetchone()
                     if cached and context is not None:
                         dependencies = (
@@ -372,8 +414,17 @@ class Jobs:
                     if cached:
                         with self.db:
                             self.db.execute(
-                                "UPDATE results SET status='complete',output_json=?,usage_json=?,error=NULL WHERE job_id=? AND course_id=?",
-                                (*tuple(cached), job, row["course_id"]),
+                                update(results)
+                                .where(
+                                    results.c.job_id == job,
+                                    results.c.course_id == row["course_id"],
+                                )
+                                .values(
+                                    status="complete",
+                                    output_json=cached["output_json"],
+                                    usage_json=cached["usage_json"],
+                                    error=None,
+                                ),
                             )
                         continue
                     args = [
@@ -419,12 +470,33 @@ class Jobs:
                             encoded, tokens = canonical(value), canonical(usage)
                             with self.db:
                                 self.db.execute(
-                                    "INSERT OR REPLACE INTO output_cache VALUES(?,?,?)",
-                                    (row["cache_key"], encoded, tokens),
+                                    insert(output_cache)
+                                    .values(
+                                        cache_key=row["cache_key"],
+                                        output_json=encoded,
+                                        usage_json=tokens,
+                                    )
+                                    .on_conflict_do_update(
+                                        index_elements=[output_cache.c.cache_key],
+                                        set_={
+                                            "output_json": encoded,
+                                            "usage_json": tokens,
+                                        },
+                                    ),
                                 )
                                 self.db.execute(
-                                    "UPDATE results SET status='complete',output_json=?,usage_json=?,error=NULL,attempts=attempts+1 WHERE job_id=? AND course_id=?",
-                                    (encoded, tokens, job, row["course_id"]),
+                                    update(results)
+                                    .where(
+                                        results.c.job_id == job,
+                                        results.c.course_id == row["course_id"],
+                                    )
+                                    .values(
+                                        status="complete",
+                                        output_json=encoded,
+                                        usage_json=tokens,
+                                        error=None,
+                                        attempts=results.c.attempts + 1,
+                                    ),
                                 )
                         except Exception as exc:
                             error = type(exc).__name__
@@ -439,18 +511,28 @@ class Jobs:
                                 error += ": " + reason[:600]
                             with self.db:
                                 self.db.execute(
-                                    "UPDATE results SET status='failed',error=?,attempts=attempts+1 WHERE job_id=? AND course_id=?",
-                                    (error, job, row["course_id"]),
+                                    update(results)
+                                    .where(
+                                        results.c.job_id == job,
+                                        results.c.course_id == row["course_id"],
+                                    )
+                                    .values(
+                                        status="failed",
+                                        error=error,
+                                        attempts=results.c.attempts + 1,
+                                    ),
                                 )
                         submit_next(pool)
             remaining = self.db.execute(
-                "SELECT count(*) FROM results WHERE job_id=? AND status!='complete'",
-                (job,),
+                select(func.count())
+                .select_from(results)
+                .where(results.c.job_id == job, results.c.status != "complete"),
             ).fetchone()[0]
             with self.db:
                 self.db.execute(
-                    "UPDATE jobs SET status=? WHERE job_id=?",
-                    ("failed" if remaining else "complete", job),
+                    update(jobs)
+                    .where(jobs.c.job_id == job)
+                    .values(status="failed" if remaining else "complete"),
                 )
             if remaining:
                 raise RuntimeError(

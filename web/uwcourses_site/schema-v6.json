@@ -10,6 +10,9 @@
         "requirements_text": "string",
         "subjects": "list<item: string>",
         "title": "string"
+      },
+      "optional_columns": {
+        "official_learning_outcomes_json": "string"
       }
     },
     "course_aliases": {
@@ -74,6 +77,13 @@
         "semester": "string",
         "subjects": "list<item: string>",
         "title": "string"
+      },
+      "optional_columns": {
+        "official_learning_outcomes_json": "string",
+        "llm_skills_evidence_json": "string",
+        "llm_activity_tags_json": "string",
+        "llm_activity_tags": "list<item: string>",
+        "source_url": "string"
       }
     },
     "courses_history": {
@@ -90,6 +100,9 @@
         "semester": "string",
         "subjects": "list<item: string>",
         "title": "string"
+      },
+      "optional_columns": {
+        "official_learning_outcomes_json": "string"
       }
     },
     "grade_section_instructors": {

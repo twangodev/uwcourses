@@ -102,7 +102,7 @@ jobs:
     outputs:
       documents_key: ${{ needs.data.outputs.documents_key }}
       social_key: ${{ needs.data.outputs.social_key }}
-    name: Documents
+    name: build-docs
     needs: [data]
     runs-on: ubuntu-latest
     timeout-minutes: 30
@@ -227,7 +227,7 @@ jobs:
           retention-days: 1
           if-no-files-found: error
   tests:
-    name: Tests
+    name: test-web
     needs: [data]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -251,7 +251,7 @@ jobs:
       - run: bun run check
       - run: bun run test
   app:
-    name: Build
+    name: build-web
     needs: [data]
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -447,7 +447,7 @@ jobs:
           path: test-results/
           retention-days: 7
   check:
-    name: Svelte
+    name: check-web
     if: always()
     needs: [resolve, tests, browser]
     outputs:

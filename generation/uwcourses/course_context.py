@@ -3,7 +3,11 @@
 import json
 import re
 
+from sqlalchemy import select
+from .schema import observations
+
 from .models import digest
+from .learning_outcomes import course_outcome_map
 
 
 def text_view(text):
@@ -54,10 +58,12 @@ def sample_reviews(reviews, limit=30):
 class CourseContext:
     def __init__(self, store, run):
         self.courses = store.records(run, "courses")
+        self.official_outcomes = course_outcome_map(store, run)
         self.sources = dict(
             store.db.execute(
-                "SELECT entity_id,source_url FROM observations WHERE run_id=? AND kind='courses' ORDER BY entity_id,source",
-                (run,),
+                select(observations.c.entity_id, observations.c.source_url)
+                .where(observations.c.run_id == run, observations.c.kind == "courses")
+                .order_by(observations.c.entity_id, observations.c.source),
             )
         )
         self.aliases = {}
@@ -69,8 +75,9 @@ class CourseContext:
         self.reviews = {}
         terms = store.records(run, "terms")
         for row in store.db.execute(
-            "SELECT payload_json FROM observations WHERE run_id=? AND kind='grades' ORDER BY entity_id",
-            (run,),
+            select(observations.c.payload_json)
+            .where(observations.c.run_id == run, observations.c.kind == "grades")
+            .order_by(observations.c.entity_id),
         ):
             grade = json.loads(row[0])
             ref = grade["course_reference"]
@@ -173,6 +180,7 @@ class CourseContext:
             "course_reference": course["course_reference"],
             "title": course["course_title"],
             "description": text_view(course.get("description", "")),
+            "official_learning_outcomes": self.official_outcomes.get(key, []),
             "requirements_text": text_view(req.get("prerequisites_text", "")),
             "linked_courses": req.get("course_references", []),
             "history": {"observations": len(history), "recent_offerings": history[-8:]},
@@ -241,12 +249,15 @@ class CourseLookup:
                 k: full[k]
                 for k in [
                     "course_id",
+                    "source_url",
                     "course_reference",
                     "title",
                     "description",
+                    "official_learning_outcomes",
                     "requirements_text",
                     "linked_courses",
                 ]
+                if k in full
             }
             if len(json.dumps(result)) + self.chars > self.max_chars:
                 result = {"error": "Course evidence budget exhausted"}

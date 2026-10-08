@@ -138,6 +138,7 @@ class LegacyTests(unittest.TestCase):
             expected = store.run(run)["started_at"]
             store.close()
             with sqlite3.connect(Path(directory) / "pipeline.sqlite") as db:
+                db.execute("DROP TABLE alembic_version")
                 for (name,) in db.execute(
                     "SELECT name FROM sqlite_master WHERE type='view'"
                 ).fetchall():

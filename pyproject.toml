@@ -25,6 +25,8 @@ dependencies = [
     "jsonschema>=4.23,<5",
     "pydantic-ai-slim[openai]>=2.36,<3",
     "pyyaml>=6,<7",
+    "sqlalchemy>=2.0,<3",
+    "alembic>=1.16,<2",
 ]
 
 [dependency-groups]
@@ -45,6 +47,7 @@ package-dir = {"" = "generation", "uwcourses_site" = "web/uwcourses_site"}
 packages = ["uwcourses", "uwcourses_site"]
 
 [tool.setuptools.package-data]
+uwcourses = ["migrations/*.py", "migrations/versions/*.py"]
 uwcourses_site = ["schema-v6.json"]
 
 [tool.ruff.lint]
