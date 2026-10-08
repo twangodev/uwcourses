@@ -19,7 +19,12 @@ from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RequestUsage
 
 import test_unified
-from uwcourses.agents import generate_unified, generate_repair, generate_generic, evidence_view
+from uwcourses.agents import (
+    generate_unified,
+    generate_repair,
+    generate_generic,
+    evidence_view,
+)
 from uwcourses.unified import validate_section
 
 
@@ -28,28 +33,52 @@ class AgentTests(unittest.TestCase):
         f = self.fixture
         f.outcome_evidence()
         f.root["official_learning_outcomes"] = [
-            {**f.root["official_learning_outcomes"][0], "text": f"Official statement {index}."}
+            {
+                **f.root["official_learning_outcomes"][0],
+                "text": f"Official statement {index}.",
+            }
             for index in range(7)
         ]
         original = copy.deepcopy(f.root)
         fingerprint = f.context.fingerprint(f.root["course_id"])
         related = evidence_view(f.root, {"search_profile"}, related=True)
-        self.assertEqual([value["outcome_index"] for value in related["official_learning_outcomes"]], list(range(7)))
+        self.assertEqual(
+            [value["outcome_index"] for value in related["official_learning_outcomes"]],
+            list(range(7)),
+        )
 
         def model(messages, info):
             rendered = ModelMessagesTypeAdapter.dump_json(messages).decode()
-            self.assertIn("native JSON object or null, never a JSON-encoded string", rendered)
+            self.assertIn(
+                "native JSON object or null, never a JSON-encoded string", rendered
+            )
             self.assertIn("summary as a {text, evidence} object", rendered)
-            prompts = [json.loads(part.content) for message in messages for part in message.parts
-                       if isinstance(part, UserPromptPart)]
+            prompts = [
+                json.loads(part.content)
+                for message in messages
+                for part in message.parts
+                if isinstance(part, UserPromptPart)
+            ]
             evidence = prompts[0]["course"]["official_learning_outcomes"]
-            self.assertEqual([value["outcome_index"] for value in evidence], list(range(7)))
+            self.assertEqual(
+                [value["outcome_index"] for value in evidence], list(range(7))
+            )
             self.assertEqual(evidence[-1]["text"], "Official statement 6.")
-            self.assertEqual(evidence[-1]["source_url"], original["official_learning_outcomes"][-1]["source_url"])
-            return self.response({"search_profile": f.search, "requirements": f.requirements,
-                                  "student_experience": f.experience})
+            self.assertEqual(
+                evidence[-1]["source_url"],
+                original["official_learning_outcomes"][-1]["source_url"],
+            )
+            return self.response(
+                {
+                    "search_profile": f.search,
+                    "requirements": f.requirements,
+                    "student_experience": f.experience,
+                }
+            )
 
-        result, _ = generate_unified(f.profile, self.task, f.root, f.context, FunctionModel(model))
+        result, _ = generate_unified(
+            f.profile, self.task, f.root, f.context, FunctionModel(model)
+        )
         self.assertEqual(result["sections"]["search_profile"]["status"], "valid")
         self.assertEqual(f.root, original)
         self.assertEqual(f.context.fingerprint(f.root["course_id"]), fingerprint)

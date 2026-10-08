@@ -55,10 +55,17 @@ class UnifiedTests(unittest.TestCase):
     def test_generation_citations_require_outcome_provenance_only(self):
         original = self.task["schema"]["properties"]["search_profile"]
         grammar = generation_schema(original)
-        self.assertNotIn("anyOf", original["properties"]["skills_taught"]["items"]["properties"]["evidence"]["items"])
+        self.assertNotIn(
+            "anyOf",
+            original["properties"]["skills_taught"]["items"]["properties"]["evidence"][
+                "items"
+            ],
+        )
         citation = self.outcome_evidence()
         candidate = copy.deepcopy(self.search)
-        candidate["skills_taught"] = [{"text": "Write Python programs", "evidence": [citation]}]
+        candidate["skills_taught"] = [
+            {"text": "Write Python programs", "evidence": [citation]}
+        ]
         jsonschema.validate(candidate, grammar)
         for missing in ("source_url", "outcome_index"):
             with self.subTest(missing=missing):
@@ -69,9 +76,17 @@ class UnifiedTests(unittest.TestCase):
         # Historical scalar quotes remain accepted without new metadata.
         jsonschema.validate(self.search, grammar)
 
-    def test_chem_related_lookup_retains_source_url_for_valid_background_citations(self):
-        root = course("CHEM 547", description="Modern synthetic organic chemistry.", requirements="CHEM 345")
-        related = course("CHEM 345", description="Principles of molecular structure and bonding.")
+    def test_chem_related_lookup_retains_source_url_for_valid_background_citations(
+        self,
+    ):
+        root = course(
+            "CHEM 547",
+            description="Modern synthetic organic chemistry.",
+            requirements="CHEM 345",
+        )
+        related = course(
+            "CHEM 345", description="Principles of molecular structure and bonding."
+        )
         for value in (root, related):
             value["course_reference"]["subjects"] = ["CHEM"]
             value["source_url"] = "https://guide.wisc.edu/courses/chem/"
@@ -80,17 +95,42 @@ class UnifiedTests(unittest.TestCase):
         found = lookup.get_course("CHEM 345", "CHEM 547")
         self.assertEqual(found["source_url"], related["source_url"])
         candidate = copy.deepcopy(self.search)
-        candidate["summary"] = {"text": "Synthetic organic chemistry.", "evidence": [{
-            "course_id": "CHEM 547", "field": "description", "quote": root["description"],
-            "source_url": root["source_url"],
-        }]}
-        candidate["assumed_background"] = [{"text": "Molecular structure and bonding", "evidence": [{
-            "course_id": "CHEM 345", "field": "description", "quote": related["description"],
-            "source_url": related["source_url"],
-        }]}]
-        self.assertEqual(validate_section("search_profile", candidate, self.task, root, lookup)["status"], "valid")
-        candidate["assumed_background"][0]["evidence"][0]["source_url"] = "https://example.org/wrong"
-        with self.assertRaisesRegex(ValueError, r"CHEM 345.description.*https://guide.wisc.edu/courses/chem/"):
+        candidate["summary"] = {
+            "text": "Synthetic organic chemistry.",
+            "evidence": [
+                {
+                    "course_id": "CHEM 547",
+                    "field": "description",
+                    "quote": root["description"],
+                    "source_url": root["source_url"],
+                }
+            ],
+        }
+        candidate["assumed_background"] = [
+            {
+                "text": "Molecular structure and bonding",
+                "evidence": [
+                    {
+                        "course_id": "CHEM 345",
+                        "field": "description",
+                        "quote": related["description"],
+                        "source_url": related["source_url"],
+                    }
+                ],
+            }
+        ]
+        self.assertEqual(
+            validate_section("search_profile", candidate, self.task, root, lookup)[
+                "status"
+            ],
+            "valid",
+        )
+        candidate["assumed_background"][0]["evidence"][0]["source_url"] = (
+            "https://example.org/wrong"
+        )
+        with self.assertRaisesRegex(
+            ValueError, r"CHEM 345.description.*https://guide.wisc.edu/courses/chem/"
+        ):
             validate_section("search_profile", candidate, self.task, root, lookup)
 
     def outcome_evidence(self):

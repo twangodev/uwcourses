@@ -37,7 +37,8 @@ def generation_schema(schema):
         field = properties.get("field", {})
         if (
             node.get("type") == "object"
-            and {"course_id", "field", "quote", "outcome_index", "source_url"} <= properties.keys()
+            and {"course_id", "field", "quote", "outcome_index", "source_url"}
+            <= properties.keys()
             and "official_learning_outcomes" in field.get("enum", [])
         ):
             # Disjoint generated citations require outcome provenance while
@@ -46,9 +47,11 @@ def generation_schema(schema):
             scalar["properties"]["field"]["enum"].remove("official_learning_outcomes")
             scalar["properties"].pop("outcome_index")
             outcome["properties"]["field"] = {"const": "official_learning_outcomes"}
-            outcome["required"] = list(dict.fromkeys([
-                *outcome.get("required", []), "outcome_index", "source_url"
-            ]))
+            outcome["required"] = list(
+                dict.fromkeys(
+                    [*outcome.get("required", []), "outcome_index", "source_url"]
+                )
+            )
             node.clear()
             node["anyOf"] = [scalar, outcome]
         node.pop("uniqueItems", None)
