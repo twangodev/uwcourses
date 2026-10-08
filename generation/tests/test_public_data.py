@@ -22,8 +22,59 @@ from uwcourses.public_data import (
     write_rows,
     selected_enrichments,
     grounded_learning_claims,
+    enrich_fields,
 )
 from uwcourses.release import PUBLIC_VIEWS, write_parquet
+
+
+class LegacySkillsTests(unittest.TestCase):
+    def test_legacy_projection_does_not_claim_new_cited_skill_contract(self):
+        from uwcourses_site.importer import course_learning_fields
+
+        for skills in (
+            ["Programming"],
+            [
+                {
+                    "text": "Programming",
+                    "evidence": [
+                        {
+                            "course_id": "COMPSCI 300",
+                            "field": "description",
+                            "quote": "Write programs.",
+                        }
+                    ],
+                }
+            ],
+        ):
+            with self.subTest(skills=skills):
+                row = {
+                    "job_id": "old",
+                    "output_id": "old",
+                    "model": "old",
+                    "model_revision": "a" * 40,
+                    "output_json": canonical(
+                        {
+                            "task_version": 16,
+                            "sections": {
+                                "search_profile": {
+                                    "status": "valid",
+                                    "value": {
+                                        "summary": "Existing summary",
+                                        "skills_taught": skills,
+                                    },
+                                }
+                            },
+                        }
+                    ),
+                }
+                projected = enrich_fields(row)
+                self.assertNotIn("llm_skills_evidence_json", projected)
+                course = course_learning_fields(
+                    {**projected, "course_id": "COMPSCI 300"}
+                )
+                self.assertEqual(course["llm_skills"], ["Programming"])
+                self.assertEqual(course["llm_search_status"], "valid")
+                self.assertEqual(course["llm_summary"], "Existing summary")
 
 
 class PublicDataTests(unittest.TestCase):
@@ -443,6 +494,31 @@ class PublicDataTests(unittest.TestCase):
         self.assertEqual(row["llm_summary"], "Object oriented programming")
         self.assertEqual(row["llm_topics"], ["Objects"])
         self.assertEqual(row["llm_search_phrases"], ["java programming"])
+
+    def test_legacy_plain_skills_survive_reexport_and_serving_import(self):
+        from uwcourses_site.importer import course_learning_fields
+
+        self.add_job("selected", 1)
+        output = json.loads(
+            self.db.execute(
+                "SELECT output_json FROM enrichment_outputs WHERE output_id='selected'"
+            ).fetchone()[0]
+        )
+        output["sections"]["search_profile"]["value"]["skills_taught"] = ["Programming"]
+        self.db.execute(
+            "UPDATE enrichment_outputs SET output_json=? WHERE output_id='selected'",
+            (canonical(output),),
+        )
+        self.db.commit()
+        destination, _ = self.export()
+        row = pq.read_table(destination / "public/courses_current.parquet").to_pylist()[
+            0
+        ]
+        self.assertIsNone(row["llm_skills_evidence_json"])
+        course = course_learning_fields(row)
+        self.assertEqual(course["llm_skills"], ["Programming"])
+        self.assertEqual(course["llm_search_status"], "valid")
+        self.assertEqual(course["llm_search_phrases"], ["java programming"])
 
     def test_typed_grades_deduplicate_snapshots_and_keep_missing_counts_null(self):
         output, counts = self.export()

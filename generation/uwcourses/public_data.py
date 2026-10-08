@@ -318,13 +318,32 @@ def enrich_fields(row):
                     for item in value.get(source, [])
                 ]
             result["llm_search_phrases"] = value.get("search_phrases", [])
-            result["llm_skills_evidence_json"] = canonical(
-                [
-                    item
-                    for item in value.get("skills_taught", [])
-                    if isinstance(item, dict)
-                ]
+            skills = value.get("skills_taught", [])
+            version = str(output.get("task_version") or "0").split("-", 1)[0]
+            legacy = (
+                version.isdigit() and int(version) < 17 and "activity_tags" not in value
             )
+            legacy = legacy and not any(
+                citation.get("field") == "official_learning_outcomes"
+                for item in skills
+                if isinstance(item, dict)
+                for citation in item.get("evidence", [])
+                if isinstance(citation, dict)
+            )
+            legacy_skills = legacy and any(
+                not isinstance(item, dict)
+                or not item.get("evidence")
+                or any(
+                    citation.get("field") == "title" or not citation.get("source_url")
+                    for citation in item.get("evidence", [])
+                    if isinstance(citation, dict)
+                )
+                for item in skills
+            )
+            if not legacy_skills:
+                result["llm_skills_evidence_json"] = canonical(
+                    [item for item in skills if isinstance(item, dict)]
+                )
             activity_tags = [
                 {**item, "text": item.get("label", item.get("text"))}
                 for item in value.get("activity_tags", [])
@@ -619,6 +638,8 @@ def write_public(database, destination, release_id, source_run, registry_path=No
                 ("llm_skills_evidence_json", False),
                 ("llm_activity_tags_json", True),
             ):
+                if course.get(field) is None:
+                    continue  # Legacy plain skills retain their published projection.
                 candidates = json.loads(course.get(field) or "[]")
                 claims = grounded_learning_claims(
                     candidates,
