@@ -13,6 +13,25 @@ export function activityLabel(value: string) {
   return activityLabels[value as keyof typeof activityLabels] ?? value;
 }
 
+/** Group identical displayed statements while retaining every source observation. */
+export function groupedLearningOutcomes(outcomes: OfficialLearningOutcome[]) {
+  const groups = new Map<
+    string,
+    { text: string; sources: OfficialLearningOutcome[] }
+  >();
+  for (const outcome of outcomes) {
+    const key = JSON.stringify([
+      outcome.text,
+      outcome.term ?? null,
+      outcome.catalog_year ?? null,
+    ]);
+    const group = groups.get(key);
+    if (group) group.sources.push(outcome);
+    else groups.set(key, { text: outcome.text, sources: [outcome] });
+  }
+  return [...groups.values()];
+}
+
 export function learningEvidence(
   claim: Claim,
   outcomes: OfficialLearningOutcome[] = [],

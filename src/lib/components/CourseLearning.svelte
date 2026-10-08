@@ -2,6 +2,7 @@
   import type { Claim, Citation, OfficialLearningOutcome } from "$lib/types";
   import {
     activityLabel,
+    groupedLearningOutcomes,
     learningEvidence,
     supportedLearningClaims,
   } from "$lib/course-learning";
@@ -22,6 +23,7 @@
     description?: string;
     experimental?: boolean;
   } = $props();
+  const displayedOutcomes = $derived(groupedLearningOutcomes(outcomes));
   const supportedSkills = $derived(
     experimental ? supportedLearningClaims(skills, outcomes, description) : [],
   );
@@ -86,10 +88,14 @@
         <section aria-label="Official learning outcomes">
           <h3>Official learning outcomes</h3>
           <ul class="outcomes">
-            {#each outcomes as outcome}
+            {#each displayedOutcomes as outcome}
               <li>
                 <p>{outcome.text}</p>
-                {@render sourceLink(outcome)}
+                <div class="outcome-sources">
+                  {#each outcome.sources as source}
+                    {@render sourceLink(source)}
+                  {/each}
+                </div>
               </li>
             {/each}
           </ul>
@@ -137,6 +143,10 @@
   .source {
     color: var(--muted);
     font-size: 12px;
+  }
+  .outcome-sources {
+    display: grid;
+    gap: 4px;
   }
   .source a {
     text-decoration: underline;

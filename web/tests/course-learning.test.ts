@@ -4,10 +4,42 @@ import CourseLearning from "../../src/lib/components/CourseLearning.svelte";
 import { activeCourseFilters } from "../../src/lib/course-filter-ui";
 import {
   learningEvidence,
+  groupedLearningOutcomes,
   supportedLearningClaims,
 } from "../../src/lib/course-learning";
 
 describe("evidence-backed course learning", () => {
+  it("groups identical cross-listed statements without losing provenance or merging different catalog contexts", () => {
+    const base = {
+      text: "Analyze observations.",
+      source: "UW Guide",
+      source_url: "https://guide.wisc.edu/courses/chem/",
+      observed_at: "2026-10-01T10:00:00Z",
+      term: "1272",
+      catalog_year: "2026-2027",
+    };
+    const outcomes = [
+      base,
+      {
+        ...base,
+        source_url: "https://guide.wisc.edu/courses/biochem/",
+        observed_at: "2026-10-08T10:00:00Z",
+      },
+      { ...base, term: "1262" },
+      { ...base, catalog_year: "2025-2026" },
+    ];
+    const groups = groupedLearningOutcomes(outcomes);
+    expect(groups).toHaveLength(3);
+    expect(groups[0].sources).toEqual(outcomes.slice(0, 2));
+    expect(outcomes).toHaveLength(4);
+    const html = render(CourseLearning, { props: { outcomes } }).body;
+    expect(html.match(/Analyze observations\./g)).toHaveLength(3);
+    expect(html).toContain('href="https://guide.wisc.edu/courses/chem/"');
+    expect(html).toContain('href="https://guide.wisc.edu/courses/biochem/"');
+    expect(html).toContain("Recorded 2026-10-01");
+    expect(html).toContain("Recorded 2026-10-08");
+    expect(html).toContain("Catalog 2025-2026");
+  });
   it("renders official outcomes, derived claims and source passages in initial HTML", () => {
     const html = render(CourseLearning, {
       props: {
