@@ -46,12 +46,18 @@ def evidence_view(root, needed, related=False):
     if related:
         keys = {"course_id", "course_reference", "title"}
         if "search_profile" in needed:
-            keys.update({"description", "source_url"})
+            keys.update({"description", "official_learning_outcomes", "source_url"})
         return {k: v for k, v in root.items() if k in keys}
     keys = {"course_id", "course_reference", "title"}
     if "search_profile" in needed:
         keys.update(
-            {"description", "requirements_text", "linked_courses", "source_url"}
+            {
+                "description",
+                "official_learning_outcomes",
+                "requirements_text",
+                "linked_courses",
+                "source_url",
+            }
         )
     if "requirements" in needed:
         keys.update({"requirements_text", "linked_courses"})

@@ -18,6 +18,29 @@ from .requirements_eval import expression, normalize
 SECTIONS = ("search_profile", "requirements", "student_experience")
 
 
+def outcome_quote(citation, course):
+    """Outcome evidence identifies one source record, never a merged text blob."""
+    outcomes = course.get("official_learning_outcomes", []) if course else []
+    index = citation.get("outcome_index")
+    if (
+        not isinstance(index, int)
+        or isinstance(index, bool)
+        or not 0 <= index < len(outcomes)
+    ):
+        raise ValueError("Outcome evidence requires an available outcome_index")
+    outcome = outcomes[index]
+    if citation.get("source_url") != outcome.get("source_url"):
+        raise ValueError(
+            "Outcome evidence source_url must match the selected official source"
+        )
+    quote = citation["quote"]
+    if not quote.strip() or quote not in outcome["text"]:
+        raise ValueError(
+            "Outcome evidence requires an exact substring of the selected official outcome"
+        )
+    return quote
+
+
 def compare_parsers(section, original):
     def convert(node):
         if isinstance(node, str):
@@ -137,7 +160,11 @@ def review_handles(root):
 
 
 def validate_section(name, candidate, task, root, lookup):
-    if name == "search_profile" and not root.get("description", "").strip():
+    if (
+        name == "search_profile"
+        and not root.get("description", "").strip()
+        and not root.get("official_learning_outcomes")
+    ):
         return {
             "status": "insufficient_evidence",
             "value": None,
@@ -161,6 +188,7 @@ def validate_section(name, candidate, task, root, lookup):
             *value["topics"],
             *value["skills_taught"],
             *value["assumed_background"],
+            *value.get("activity_tags", []),
         ]
         for claim in claims:
             if not claim["evidence"]:
@@ -169,6 +197,24 @@ def validate_section(name, candidate, task, root, lookup):
                 original = copy.deepcopy(citation)
                 key = lookup.context.resolve(citation["course_id"])
                 course = lookup.evidence.get(key)
+                if citation["field"] == "official_learning_outcomes":
+                    quote = outcome_quote(citation, course)
+                    citation.update(course_id=key, quote=quote)
+                    if citation != original:
+                        repairs.append(
+                            {"original": original, "resolved": copy.deepcopy(citation)}
+                        )
+                    continue
+                if "outcome_index" in citation:
+                    raise ValueError(
+                        "outcome_index is only valid for official learning outcome evidence"
+                    )
+                if "source_url" in citation and (
+                    not course or citation["source_url"] != course.get("source_url")
+                ):
+                    raise ValueError(
+                        "Evidence source_url must match the supplied course source"
+                    )
                 quote = (
                     source_quote(citation["quote"], course.get(citation["field"], ""))
                     if course
@@ -204,18 +250,34 @@ def validate_section(name, candidate, task, root, lookup):
                         + hint
                     )
                 citation.update(course_id=key, quote=quote)
+                if course.get("source_url"):
+                    citation["source_url"] = course["source_url"]
                 if citation != original:
                     repairs.append(
                         {"original": original, "resolved": copy.deepcopy(citation)}
                     )
-        for claim in [value["summary"], *value["topics"], *value["skills_taught"]]:
+        for claim in [
+            value["summary"],
+            *value["topics"],
+            *value["skills_taught"],
+            *value.get("activity_tags", []),
+        ]:
             if any(
                 e["course_id"] != root["course_id"]
-                or e["field"] not in {"description", "title"}
+                or e["field"]
+                not in {"description", "title", "official_learning_outcomes"}
                 for e in claim["evidence"]
             ):
                 raise ValueError(
-                    "Taught content must cite the root course description or title, not prerequisites. Omit claims supported only by another course."
+                    "Taught content must cite the root course description, title or official learning outcomes, not prerequisites. Omit claims supported only by another course."
+                )
+        labels = [tag["label"] for tag in value.get("activity_tags", [])]
+        if len(labels) != len(set(labels)):
+            raise ValueError("Activity tags must have distinct labels")
+        for tag in value.get("activity_tags", []):
+            if any(e["field"] == "title" for e in tag["evidence"]):
+                raise ValueError(
+                    "Activity tags require descriptions or official outcomes; a title alone does not establish an activity"
                 )
         for claim in value["assumed_background"]:
             for citation in claim["evidence"]:

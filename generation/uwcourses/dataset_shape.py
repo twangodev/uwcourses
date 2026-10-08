@@ -287,7 +287,7 @@ def write_shape(db, directory, runs, source_run, identities):
                 "SELECT DISTINCT run_id FROM observations WHERE kind='grades' AND source='madgrades'"
             )
         }
-        for row in db.execute("""SELECT s.*,v.title,v.description,v.prerequisites_json
+        for row in db.execute("""SELECT s.*,v.title,v.description,v.prerequisites_json,v.record_json
             FROM course_snapshots s JOIN course_versions v USING(version_id)
             ORDER BY s.course_id,s.run_id"""):
             run, label = row["run_id"], row["course_id"]
@@ -299,15 +299,7 @@ def write_shape(db, directory, runs, source_run, identities):
                 "subjects": subject_part.split("/"),
                 "course_number": int(number),
             }
-            catalog = catalog_record(
-                label,
-                {
-                    "course_reference": reference,
-                    "course_title": row["title"],
-                    "description": row["description"],
-                    "prerequisites": json.loads(row["prerequisites_json"] or "null"),
-                },
-            )
+            catalog = catalog_record(label, json.loads(row["record_json"]))
             shape.add(
                 "course_observations",
                 [run, label],

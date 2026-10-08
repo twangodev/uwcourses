@@ -49,6 +49,89 @@ class Context:
 
 
 class UnifiedTests(unittest.TestCase):
+    def outcome_evidence(self):
+        self.root["official_learning_outcomes"] = [
+            {
+                "text": "Write and debug Python programs.",
+                "source": "guide",
+                "source_url": "https://guide.wisc.edu/courses/comp_sci/",
+                "observed_at": "2026-10-08",
+                "term": None,
+                "catalog_year": "2026-2027",
+            }
+        ]
+        return {
+            "course_id": "COMPSCI 300",
+            "field": "official_learning_outcomes",
+            "outcome_index": 0,
+            "source_url": self.root["official_learning_outcomes"][0]["source_url"],
+            "quote": "Write and debug Python programs.",
+        }
+
+    def test_outcomes_support_skills_without_description(self):
+        citation = self.outcome_evidence()
+        self.root["description"] = ""
+        self.search["summary"] = {
+            "text": "Programming in Python.",
+            "evidence": [citation],
+        }
+        self.search["skills_taught"] = [
+            {"text": "Debug Python programs", "evidence": [citation]}
+        ]
+        self.search["activity_tags"] = [
+            {"label": "programming", "evidence": [citation]}
+        ]
+        value = validate_section(
+            "search_profile", self.search, self.task, self.root, self.lookup
+        )
+        self.assertEqual(value["status"], "valid")
+        self.assertEqual(value["value"]["activity_tags"][0]["evidence"][0], citation)
+
+    def test_outcome_citations_reject_wrong_source_index_and_paraphrase(self):
+        citation = self.outcome_evidence()
+        self.search["skills_taught"] = [
+            {"text": "Debug Python programs", "evidence": [citation]}
+        ]
+        for field, bad in [
+            ("source_url", "https://example.org"),
+            ("outcome_index", 10),
+            ("quote", "Write/debug Python programs."),
+        ]:
+            with self.subTest(field=field):
+                old = citation[field]
+                citation[field] = bad
+                with self.assertRaises(ValueError):
+                    validate_section(
+                        "search_profile", self.search, self.task, self.root, self.lookup
+                    )
+                citation[field] = old
+
+    def test_activity_citations_reject_titles_and_duplicate_labels(self):
+        citation = self.outcome_evidence()
+        self.search["activity_tags"] = [
+            {"label": "programming", "evidence": [citation]}
+        ] * 2
+        with self.assertRaisesRegex(ValueError, "distinct labels"):
+            validate_section(
+                "search_profile", self.search, self.task, self.root, self.lookup
+            )
+        self.search["activity_tags"] = [
+            {
+                "label": "programming",
+                "evidence": [
+                    {
+                        "course_id": "COMPSCI 300",
+                        "field": "title",
+                        "quote": "Programming",
+                    }
+                ],
+            }
+        ]
+        with self.assertRaisesRegex(ValueError, "title alone"):
+            validate_section(
+                "search_profile", self.search, self.task, self.root, self.lookup
+            )
+
     def test_missing_description_does_not_preserve_inferred_metadata(self):
         self.root["description"] = ""
         result = validate_section(

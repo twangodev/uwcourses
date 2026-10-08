@@ -23,7 +23,17 @@ export { graduateLevels, undergraduateLevels };
 
 export type Designation = { family: string; value: string };
 
+export const activityValues = [
+  "programming",
+  "data-analysis",
+  "mathematical-reasoning",
+  "writing",
+  "lab-work",
+  "presentations",
+] as const;
+
 export type CourseQuery = {
+  activity?: (typeof activityValues)[number];
   subjects: string[];
   tags: CourseTag[];
   levels: number[];
@@ -96,6 +106,7 @@ export function parseCourseFilters(
   const days = tokenList(params, "days").map(known(weekdayIndex, "day"));
   return {
     subjects: tokenList(params, "subject").map(subjectCode),
+    activity: optionalChoice(params, "activity", activityValues),
     tags: unique(tokenList(params, "tags").map(choice(courseTagValues, "tag"))),
     levels: unique(tokenList(params, "level").map(levelBand)),
     creditsMin: optionalNumber(params, "credits_min", 0, 20),
@@ -126,6 +137,7 @@ export function parseCourseFilters(
 
 export function compileCourseQuery(query: CourseQuery): CompiledCourseQuery {
   const terms = [
+    activityTerm(query),
     tagTerm(query),
     subjectTerm(query),
     levelTerm(query),
@@ -142,6 +154,15 @@ export function compileCourseQuery(query: CourseQuery): CompiledCourseQuery {
     where: terms.map((term) => term.sql).join(""),
     values: terms.flatMap((term) => term.values),
     history: terms.some((term) => term.history),
+  };
+}
+
+function activityTerm(query: CourseQuery): SqlTerm | undefined {
+  if (!query.activity) return;
+  return {
+    sql: " AND EXISTS(SELECT 1 FROM json_each(c.payload, '$.activity_tags') a WHERE json_extract(a.value, '$.text')=?)",
+    values: [query.activity],
+    history: false,
   };
 }
 

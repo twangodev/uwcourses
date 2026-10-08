@@ -1,4 +1,12 @@
 export type RecordData = Record<string, any>;
+export interface OfficialLearningOutcome {
+  text: string;
+  source: string;
+  source_url: string | null;
+  observed_at?: string | null;
+  term?: string | null;
+  catalog_year?: string | null;
+}
 export interface CourseCard {
   course_uid: string;
   course_id: string;
@@ -43,8 +51,12 @@ export interface Status {
   departments: { subject: string; count: number }[];
   designations?: { family: string; value: string; label: string }[];
 }
-export type Citation = import("zod").infer<typeof import("./api/schemas").citationSchema>;
-export type Claim = import("zod").infer<typeof import("./api/schemas").claimSchema>;
+export type Citation = import("zod").infer<
+  typeof import("./api/schemas").citationSchema
+>;
+export type Claim = import("zod").infer<
+  typeof import("./api/schemas").claimSchema
+>;
 export interface RequirementNode {
   id: string;
   kind: string;

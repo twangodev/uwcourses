@@ -57,3 +57,17 @@ top_k = 20
 presence_penalty = 0.0
 thinking = false
 server_args = ["--quantization", "modelopt_fp4", "--kv-cache-dtype", "fp8", "--reasoning-parser", "qwen3", "--gpu-memory-utilization", "0.80", "--max-num-seqs", "256", "--max-num-batched-tokens", "16384", "--enforce-eager", "--language-model-only", "--enable-auto-tool-choice", "--tool-call-parser", "qwen3_xml"]
+
+# Separate evidence extraction profile; revision is pinned by lock-models/job creation.
+# Conservative concurrency for the dense model; operator sizes GPU memory locally.
+[profiles.course-skills-qwen38]
+model = "Qwen/Qwen3.8-27B"
+base_url = "http://127.0.0.1:8003/v1"
+runner = "generate"
+context_length = 32768
+max_output_tokens = 8192
+request_timeout_seconds = 1800
+concurrency = 4
+temperature = 0.0
+thinking = false
+server_args = ["--dtype", "bfloat16", "--reasoning-parser", "qwen3", "--gpu-memory-utilization", "0.85", "--max-num-seqs", "4", "--language-model-only", "--enable-auto-tool-choice", "--tool-call-parser", "qwen3_xml"]

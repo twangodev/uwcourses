@@ -29,6 +29,17 @@ const searchParameters = [
   ...courseFacets.flatMap((facet) =>
     facet.params.map((param) => query(param.name, param.description)),
   ),
+  query("activity", "Evidence-backed course activity classification.", {
+    type: "string",
+    enum: [
+      "programming",
+      "data-analysis",
+      "mathematical-reasoning",
+      "writing",
+      "lab-work",
+      "presentations",
+    ],
+  }),
   query("sort", "Course sort. gpa orders by historical GPA."),
   query("ranking", "Course collection ranking: easiest or hardest."),
 ];
@@ -77,7 +88,11 @@ export function openapiSpec() {
           tags: [kind],
           parameters: [
             ...parameters,
-            ...(filters.includes("search") ? searchParameters : filters.includes("term") ? searchParameters.filter(p => p.name === "term") : []),
+            ...(filters.includes("search")
+              ? searchParameters
+              : filters.includes("term")
+                ? searchParameters.filter((p) => p.name === "term")
+                : []),
           ],
           responses: {
             "200": {

@@ -48,6 +48,7 @@ CATALOG_FIELDS = [
     ("title", TEXT),
     ("description", TEXT),
     ("requirements_text", TEXT),
+    ("official_learning_outcomes_json", TEXT),
 ]
 OBSERVATION_FIELDS = [("run_id", TEXT), ("semester", TEXT), ("observed_at", TIME)]
 SCHEMAS = {
@@ -89,6 +90,10 @@ SCHEMAS = {
             ("llm_summary", TEXT),
             ("llm_topics", STRINGS),
             ("llm_skills", STRINGS),
+            ("source_url", TEXT),
+            ("llm_skills_evidence_json", TEXT),
+            ("llm_activity_tags_json", TEXT),
+            ("llm_activity_tags", STRINGS),
             ("llm_assumed_background", STRINGS),
             ("llm_search_phrases", STRINGS),
             ("llm_requirements_status", TEXT),
@@ -131,7 +136,7 @@ DESCRIPTIONS = {
     "llm_traces": "One row per archived job/course output, including unselected experiments. output_json preserves recorded model thinking, native conversations, tools, validator feedback, truncation recovery traces, rejected candidates and final sections. job_spec_json records task and inference settings. Older jobs may lack a conversation; missing traces are not reconstructed. Join courses through run_id/course_id and current outputs through llm_output_id. These are model-generated traces, not authoritative course facts.",
     "courses_current": "One row per course in the selected source snapshot. Credits come from matched current enrollment offerings; null means unavailable. LLM fields use the newest explicitly selected output per course (created_at, job_id); invalid sections never become search text or usable ASTs.",
     "courses_history": "One row per observed course per source run, with directly readable catalog fields. This is observation history, not inferred validity intervals or one row per semester. record_version_id links to the complete archival record.",
-    "catalog_versions": "Distinct catalog projections: course identity, subjects, number, title, description, and source requirement text. Parsed trees, grades, similar courses and term activity do not change this ID. Original full records remain in the archive.",
+    "catalog_versions": "Distinct catalog projections: course identity, subjects, number, title, description, source requirement text, and official outcome text. Outcome observation metadata is retained but does not change this ID. Parsed trees, grades, similar courses and term activity do not change this ID. Original full records remain in the archive.",
     "grades_latest": "One row per course and grading term, choosing the latest observed distribution across included snapshots (observed_at, run_id). semester is the observation semester; term_id is the grading semester. Counts are not duplicated for repeated scrapes. Cross-listed course aliases may still overlap; do not interpret a sum across courses as distinct students. Missing counts remain null.",
     "offerings_current": "One row per enrollment offering in the selected source snapshot. Unmatched course_id stays null. This is a schedule snapshot, not live enrollment availability.",
 }
@@ -185,7 +190,17 @@ def catalog_record(course_id, record):
         "description": record["description"],
         "requirements_text": text,
     }
-    return {**fields, "catalog_version_id": digest(fields)}
+    outcomes = record.get("official_learning_outcomes") or []
+    identity_fields = {**fields}
+    if outcomes:
+        identity_fields["official_learning_outcomes"] = [
+            item["text"] for item in outcomes
+        ]
+    return {
+        **fields,
+        "official_learning_outcomes_json": canonical(outcomes),
+        "catalog_version_id": digest(identity_fields),
+    }
 
 
 def write_rows(path, schema, rows, max_text_bytes=None):
@@ -232,7 +247,7 @@ def selected_enrichments(db):
         return {}
     # Deliberate selection wins; within it, the newest job wins as a whole.
     return {
-        row["course_id"]: enrich_fields(row)
+        row["course_id"]: {**enrich_fields(row), "_search_source_run": row["run_id"]}
         for row in db.execute("""SELECT e.*,j.created_at,o.output_id,o.model,o.model_revision
             FROM current_course_enrichments e JOIN enrichment_jobs j USING(job_id)
             JOIN course_enrichment_runs b USING(job_id,run_id,course_id)
@@ -251,6 +266,7 @@ def enrich_fields(row):
             for key in (
                 "llm_topics",
                 "llm_skills",
+                "llm_activity_tags",
                 "llm_assumed_background",
                 "llm_search_phrases",
             )
@@ -302,8 +318,130 @@ def enrich_fields(row):
                     for item in value.get(source, [])
                 ]
             result["llm_search_phrases"] = value.get("search_phrases", [])
+            result["llm_skills_evidence_json"] = canonical(
+                [
+                    item
+                    for item in value.get("skills_taught", [])
+                    if isinstance(item, dict)
+                ]
+            )
+            activity_tags = [
+                {**item, "text": item.get("label", item.get("text"))}
+                for item in value.get("activity_tags", [])
+            ]
+            result["llm_activity_tags_json"] = canonical(activity_tags)
+            result["llm_activity_tags"] = [
+                item.get("label", item.get("text")) for item in activity_tags
+            ]
         else:
             result["llm_experience_json"] = canonical(value)
+    return result
+
+
+def clear_learning_search(course):
+    """A rejected source-bound claim invalidates its entire selected search profile."""
+    course["llm_search_status"] = "stale_evidence"
+    course["llm_summary"] = None
+    for field in (
+        "llm_topics",
+        "llm_skills",
+        "llm_assumed_background",
+        "llm_search_phrases",
+        "llm_activity_tags",
+        "skills_taught",
+        "activity_tags",
+    ):
+        course[field] = []
+    for field in ("llm_skills_evidence_json", "llm_activity_tags_json"):
+        if field in course:
+            course[field] = "[]"
+
+
+ACTIVITY_LABELS = {
+    "programming",
+    "data-analysis",
+    "mathematical-reasoning",
+    "writing",
+    "lab-work",
+    "presentations",
+}
+
+
+def grounded_learning_claims(claims, course, *, activities=False):
+    """Only release claims whose citations still identify current official text."""
+    outcomes = course.get("official_learning_outcomes") or []
+    result = []
+    if not isinstance(claims, list):
+        return result
+    for claim in claims:
+        if not isinstance(claim, dict):
+            continue
+        label = (
+            claim.get("label", claim.get("text")) if activities else claim.get("text")
+        )
+        evidence = claim.get("evidence")
+        if (
+            not isinstance(label, str)
+            or not label.strip()
+            or not isinstance(evidence, list)
+            or not evidence
+        ):
+            continue
+        if activities and label not in ACTIVITY_LABELS:
+            continue
+        citations = []
+        for citation in evidence:
+            if not isinstance(citation, dict) or citation.get(
+                "course_id"
+            ) != course.get("course_id"):
+                break
+            quote = citation.get("quote")
+            if not isinstance(quote, str) or not quote.strip():
+                break
+            field = citation.get("field")
+            if field == "official_learning_outcomes":
+                index = citation.get("outcome_index")
+                if (
+                    not isinstance(index, int)
+                    or isinstance(index, bool)
+                    or not 0 <= index < len(outcomes)
+                ):
+                    break
+                source = outcomes[index]
+                if (
+                    not source.get("source_url")
+                    or citation.get("source_url") != source["source_url"]
+                    or quote not in source["text"]
+                ):
+                    break
+                citations.append(
+                    {
+                        **citation,
+                        **{
+                            key: source.get(key)
+                            for key in (
+                                "source",
+                                "source_url",
+                                "observed_at",
+                                "term",
+                                "catalog_year",
+                            )
+                        },
+                    }
+                )
+            elif field == "description":
+                if (
+                    "outcome_index" in citation
+                    or not course.get("source_url")
+                    or citation.get("source_url") != course["source_url"]
+                    or quote not in (course.get("description") or "")
+                ):
+                    break
+                citations.append(dict(citation))
+            else:
+                break
+        else:
+            result.append({**claim, "text": label, "evidence": citations})
     return result
 
 
@@ -366,6 +504,8 @@ def write_public(database, destination, release_id, source_run, registry_path=No
             {"version": 1, "assignments": identities},
         )
         counts, versions, current = {}, {}, {}
+        snapshot_catalogs = {}
+        snapshot_outcome_sources = {}
 
         def history():
             for row in db.execute("""SELECT s.*,v.record_json FROM course_snapshots s
@@ -374,6 +514,13 @@ def write_public(database, destination, release_id, source_run, registry_path=No
                 catalog = catalog_record(row["course_id"], record)
                 catalog["course_uid"] = identities[row["course_id"]]
                 versions.setdefault(catalog["catalog_version_id"], catalog)
+                snapshot_catalogs[(row["run_id"], row["course_id"])] = catalog[
+                    "catalog_version_id"
+                ]
+                snapshot_outcome_sources[(row["run_id"], row["course_id"])] = [
+                    item.get("source_url")
+                    for item in record.get("official_learning_outcomes") or []
+                ]
                 value = {
                     **observation(row["run_id"]),
                     "record_version_id": row["version_id"],
@@ -426,6 +573,11 @@ def write_public(database, destination, release_id, source_run, registry_path=No
             SCHEMAS["offerings_current"],
             offers,
         )
+        source_urls = defaultdict(set)
+        for row in db.execute(
+            "SELECT run_id,entity_id,source_url FROM observations WHERE kind='courses'",
+        ):
+            source_urls[(row["run_id"], row["entity_id"])].add(row["source_url"])
         enrichment = selected_enrichments(db)
         for key, course in current.items():
             related = by_course[key]
@@ -442,6 +594,45 @@ def write_public(database, destination, release_id, source_run, registry_path=No
                 **enrichment.get(key, enrich_fields(None)),
             )
         for course in current.values():
+            urls = source_urls[(source_run, course["course_id"])]
+            course["source_url"] = next(iter(urls)) if len(urls) == 1 else None
+            selected_run = course.pop("_search_source_run", None)
+            if selected_run and (
+                snapshot_catalogs.get((selected_run, course["course_id"]))
+                != course["catalog_version_id"]
+                or source_urls[(selected_run, course["course_id"])] != urls
+                or snapshot_outcome_sources.get((selected_run, course["course_id"]))
+                != [
+                    item.get("source_url")
+                    for item in json.loads(course["official_learning_outcomes_json"])
+                ]
+            ):
+                clear_learning_search(course)
+            rejected_claims = False
+            evidence_course = {
+                **course,
+                "official_learning_outcomes": json.loads(
+                    course["official_learning_outcomes_json"]
+                ),
+            }
+            for field, activities in (
+                ("llm_skills_evidence_json", False),
+                ("llm_activity_tags_json", True),
+            ):
+                candidates = json.loads(course.get(field) or "[]")
+                claims = grounded_learning_claims(
+                    candidates,
+                    evidence_course,
+                    activities=activities,
+                )
+                rejected_claims |= len(claims) != len(candidates)
+                course[field] = canonical(claims)
+                if activities:
+                    course["llm_activity_tags"] = [claim["text"] for claim in claims]
+                elif course.get("llm_search_status") == "valid":
+                    course["llm_skills"] = [claim["text"] for claim in claims]
+            if rejected_claims:
+                clear_learning_search(course)
             course["llm_requirements_ast_json"] = display_requirements_ast(course)
             for field in SCHEMAS["courses_current"].names:
                 course.setdefault(field, None)

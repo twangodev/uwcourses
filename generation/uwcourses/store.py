@@ -120,15 +120,33 @@ class Store:
         self.mutable(run)
         record = validate_record(item)
         with self.db:
+            source_url, payload = record.source_url, record.payload
+            if source == "catalog" and record.kind == "courses":
+                previous = self.db.execute(
+                    select(
+                        observations.c.source_url, observations.c.payload_json
+                    ).where(
+                        observations.c.run_id == run,
+                        observations.c.source == source,
+                        observations.c.kind == record.kind,
+                        observations.c.entity_id == record.key,
+                    )
+                ).fetchone()
+                if previous:
+                    from .learning_outcomes import merge_catalog_observations
+
+                    source_url, payload = merge_catalog_observations(
+                        previous[0], json.loads(previous[1]), source_url, payload
+                    )
             statement = insert(observations).values(
                 run_id=run,
                 source=source,
                 kind=record.kind,
                 entity_id=record.key,
-                source_url=record.source_url,
+                source_url=source_url,
                 observed_at=now(),
-                content_hash=digest(record.payload),
-                payload_json=canonical(record.payload),
+                content_hash=digest(payload),
+                payload_json=canonical(payload),
             )
             self.db.execute(
                 statement.on_conflict_do_update(

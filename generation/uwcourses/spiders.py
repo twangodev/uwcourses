@@ -10,6 +10,7 @@ from scrapy.http import JsonRequest
 
 from .models import CourseReference, digest
 from .reconcile import plain
+from .learning_outcomes import enrollment_outcomes, response_observed_at
 
 
 def item(kind, key, payload, response):
@@ -61,6 +62,12 @@ class CatalogSpider(SourceSpider):
         from uwcourses.course import Course
 
         soup = BeautifulSoup(response.body, "html.parser")
+        tagline = soup.select_one(".site-tagline")
+        year = tagline.get_text(strip=True) if tagline else None
+        catalog_year = year if year and re.fullmatch(r"\d{4}-\d{4}", year) else None
+        observed_at = response_observed_at(
+            self.store, self.run_id, "catalog", response.url, request=response.request
+        )
         title = soup.find(class_="page-title")
         match = re.fullmatch(
             r"(.*)\((.*)\)", title.get_text(strip=True) if title else ""
@@ -77,7 +84,13 @@ class CatalogSpider(SourceSpider):
                 return
             raise ValueError("Department contains no course blocks")
         for block in blocks:
-            course = Course.from_block(block, self.logger)
+            course = Course.from_block(
+                block,
+                self.logger,
+                source_url=response.url,
+                observed_at=observed_at,
+                catalog_year=catalog_year,
+            )
             if course is None:
                 raise ValueError("Could not parse course block")
             payload = plain(course)
@@ -203,6 +216,13 @@ class EnrollmentSpider(SourceSpider):
         if page == 1:
             for number in range(2, (found + 99) // 100 + 1):
                 yield self.page(number)
+        hit_observed_at = response_observed_at(
+            self.store,
+            self.run_id,
+            "enrollment",
+            response.url,
+            request=response.request,
+        )
         for hit in data["hits"]:
             subjects = (
                 hit["allCrossListedSubjects"]
@@ -219,10 +239,17 @@ class EnrollmentSpider(SourceSpider):
             yield self.request(
                 url,
                 self.package,
-                cb_kwargs={"hit": hit, "reference": reference.model_dump()},
+                cb_kwargs={
+                    "hit": hit,
+                    "reference": reference.model_dump(),
+                    "hit_source_url": response.url,
+                    "hit_observed_at": hit_observed_at,
+                },
             )
 
-    def package(self, response, hit, reference):
+    def package(
+        self, response, hit, reference, hit_source_url=None, hit_observed_at=None
+    ):
         sections = json.loads(response.body)
         if not isinstance(sections, list):
             raise ValueError("Invalid enrollment package")
@@ -235,6 +262,14 @@ class EnrollmentSpider(SourceSpider):
                 "course_reference": reference,
                 "hit": hit,
                 "sections": sections,
+                "hit_source_url": hit_source_url,
+                "hit_observed_at": hit_observed_at,
+                "official_learning_outcomes": enrollment_outcomes(
+                    hit,
+                    source_url=hit_source_url or response.url,
+                    observed_at=hit_observed_at,
+                    term=self.semester,
+                ),
             },
             response,
         )

@@ -165,6 +165,7 @@ class Course(JsonSerializable):
         satisfies: set[Reference] = None,
         has_meetings: bool = False,
         designations: list[str] | None = None,
+        official_learning_outcomes: list[dict] | None = None,
     ):
         if similar_courses is None:
             similar_courses = set()
@@ -187,6 +188,7 @@ class Course(JsonSerializable):
         self.satisfies = satisfies
         self.has_meetings = has_meetings
         self.designations = list(designations or [])
+        self.official_learning_outcomes = list(official_learning_outcomes or [])
 
     @classmethod
     def from_json(cls, json_data) -> "Course":
@@ -227,6 +229,8 @@ class Course(JsonSerializable):
             },
             has_meetings=json_data.get("has_meetings", False),
             designations=json_data.get("designations") or [],
+            official_learning_outcomes=json_data.get("official_learning_outcomes")
+            or [],
         )
 
     def to_dict(self):
@@ -253,10 +257,32 @@ class Course(JsonSerializable):
             "satisfies": [ref.to_dict() for ref in self.satisfies],
             "has_meetings": self.has_meetings,
             "designations": self.designations,
+            "official_learning_outcomes": self.official_learning_outcomes,
         }
 
     @classmethod
-    def from_block(cls, block, logger: Logger):
+    def from_block(
+        cls,
+        block,
+        logger: Logger,
+        *,
+        source_url=None,
+        observed_at=None,
+        catalog_year=None,
+    ):
+        from .learning_outcomes import catalog_outcomes
+
+        # Callers without source context remain compatible, without inventing a URL.
+        outcomes = (
+            catalog_outcomes(
+                block,
+                source_url=source_url,
+                observed_at=observed_at,
+                catalog_year=catalog_year,
+            )
+            if source_url
+            else []
+        )
         html_title = block.find("p", class_="courseblocktitle noindent")
 
         if not html_title:
@@ -311,6 +337,7 @@ class Course(JsonSerializable):
                 None,
                 {},
                 designations=designations,
+                official_learning_outcomes=outcomes,
             )
         requisites_text = requisites_data.get_text(strip=True)
 
@@ -354,6 +381,7 @@ class Course(JsonSerializable):
             None,
             {},
             designations=designations,
+            official_learning_outcomes=outcomes,
         )
 
     def determine_parent(self):

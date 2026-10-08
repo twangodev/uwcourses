@@ -126,6 +126,10 @@ enrichment reuse; changing database libraries does not rebind generated results.
 
 ## Optional processing
 
+For official learning outcomes, cited skills, and the source-only pilot, see
+[COURSE_SKILLS.md](COURSE_SKILLS.md). The optional local System 1 classifier and
+its held-out acceptance gates are documented in [CLASSIFICATION.md](CLASSIFICATION.md).
+
 Model profiles live in `inference/models.toml`. Pin the selected profiles once;
 both clients and server launchers use the resulting JSON file:
 

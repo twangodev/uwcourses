@@ -52,13 +52,22 @@
                     "enum": [
                       "description",
                       "requirements_text",
-                      "title"
+                      "title",
+                      "official_learning_outcomes"
                     ]
                   },
                   "quote": {
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 1800
+                  },
+                  "source_url": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "outcome_index": {
+                    "type": "integer",
+                    "minimum": 0
                   }
                 }
               }
@@ -102,13 +111,22 @@
                       "enum": [
                         "description",
                         "requirements_text",
-                        "title"
+                        "title",
+                        "official_learning_outcomes"
                       ]
                     },
                     "quote": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 1800
+                    },
+                    "source_url": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "outcome_index": {
+                      "type": "integer",
+                      "minimum": 0
                     }
                   }
                 }
@@ -153,13 +171,22 @@
                       "enum": [
                         "description",
                         "requirements_text",
-                        "title"
+                        "title",
+                        "official_learning_outcomes"
                       ]
                     },
                     "quote": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 1800
+                    },
+                    "source_url": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "outcome_index": {
+                      "type": "integer",
+                      "minimum": 0
                     }
                   }
                 }
@@ -204,13 +231,22 @@
                       "enum": [
                         "description",
                         "requirements_text",
-                        "title"
+                        "title",
+                        "official_learning_outcomes"
                       ]
                     },
                     "quote": {
                       "type": "string",
                       "minLength": 1,
                       "maxLength": 1800
+                    },
+                    "source_url": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "outcome_index": {
+                      "type": "integer",
+                      "minimum": 0
                     }
                   }
                 }
@@ -225,6 +261,71 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 100
+          }
+        },
+        "activity_tags": {
+          "type": "array",
+          "maxItems": 6,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "label",
+              "evidence"
+            ],
+            "properties": {
+              "evidence": {
+                "type": "array",
+                "maxItems": 4,
+                "items": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "course_id",
+                    "field",
+                    "quote"
+                  ],
+                  "properties": {
+                    "course_id": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 100
+                    },
+                    "field": {
+                      "enum": [
+                        "description",
+                        "requirements_text",
+                        "title",
+                        "official_learning_outcomes"
+                      ]
+                    },
+                    "quote": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 1800
+                    },
+                    "source_url": {
+                      "type": "string",
+                      "minLength": 1
+                    },
+                    "outcome_index": {
+                      "type": "integer",
+                      "minimum": 0
+                    }
+                  }
+                }
+              },
+              "label": {
+                "enum": [
+                  "programming",
+                  "data-analysis",
+                  "mathematical-reasoning",
+                  "writing",
+                  "lab-work",
+                  "presentations"
+                ]
+              }
+            }
           }
         }
       }

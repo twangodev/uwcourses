@@ -5,6 +5,7 @@
   import { Search, X } from "@lucide/svelte";
   import { goto } from "$app/navigation";
   import { activeCourseFilters } from "$lib/course-filter-ui";
+  import { activityLabels } from "$lib/course-learning";
   import SearchInput from "./SearchInput.svelte";
   import Select from "./Select.svelte";
   import FacetSelect from "./FacetSelect.svelte";
@@ -110,6 +111,18 @@
     onRequest={facets.requestGroup}
   >
     {#snippet context()}
+      <Select
+        label="Learning activity"
+        value={filters.activity || ""}
+        options={[
+          { value: "", label: "All learning activities" },
+          ...Object.entries(activityLabels).map(([value, label]) => ({
+            value,
+            label,
+          })),
+        ]}
+        onChange={(value) => change({ activity: value })}
+      />
       {#if !subject}
         <FacetSelect
           label="Department"

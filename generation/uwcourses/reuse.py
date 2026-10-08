@@ -18,13 +18,26 @@ FACT_FIELDS = (
     "course_reference",
     "title",
     "description",
+    "official_learning_outcomes",
     "requirements_text",
     "linked_courses",
 )
 
 
 def facts(value):
-    return {key: value.get(key) for key in FACT_FIELDS} if value is not None else None
+    if value is None:
+        return None
+    result = {key: value.get(key) for key in FACT_FIELDS}
+    # A repeated fetch does not change what the source says. Keep record order:
+    # outcome citations use indexes, so reordering must invalidate prior outputs.
+    result["official_learning_outcomes"] = [
+        {
+            key: outcome.get(key)
+            for key in ("text", "source", "source_url", "term", "catalog_year")
+        }
+        for outcome in value.get("official_learning_outcomes") or []
+    ]
+    return result
 
 
 class ReuseIndex:
@@ -86,6 +99,12 @@ class ReuseIndex:
                     lookup.get_course(call["course_id"], call["from_course"])
             sections, origins = {}, {}
             for name in ("search_profile", "requirements"):
+                if name == "search_profile" and spec["task"].get(
+                    "search_profile_evidence_version", 1
+                ) < self.task.get("search_profile_evidence_version", 1):
+                    # Old descriptions-only tasks never examined outcomes or
+                    # activities, even when the archive already contained them.
+                    continue
                 section = previous.get("sections", {}).get(name, {})
                 if (
                     section.get("status") not in {"valid", "needs_review"}

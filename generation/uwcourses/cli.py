@@ -142,6 +142,20 @@ def parser():
     models.add_argument("--models-config", type=Path, required=True)
     models.add_argument("--profile", action="append", required=True)
     models.add_argument("--output", type=Path, required=True)
+    classify = commands.add_parser(
+        "classifier-predict",
+        help="Run pinned optional Laya inference on manually labeled evidence JSONL",
+    )
+    classify.add_argument("--input", type=Path, required=True)
+    classify.add_argument("--output", type=Path, required=True)
+    classify.add_argument("--revision", required=True)
+    classify.add_argument("--device")
+    evaluate = commands.add_parser(
+        "classifier-evaluate",
+        help="Evaluate supplied predictions without loading any model",
+    )
+    evaluate.add_argument("--input", type=Path, required=True)
+    evaluate.add_argument("--output", type=Path, required=True)
     crawl = commands.add_parser("_crawl")
     crawl.add_argument("run_id")
     crawl.add_argument("source", choices=SOURCES)
@@ -216,6 +230,19 @@ def main(argv=None):
         value = getattr(args, name, None)
         if value and not re.fullmatch(r"[A-Za-z0-9_-]+", value):
             raise ValueError(f"Invalid {name}")
+    if args.command in {"classifier-predict", "classifier-evaluate"}:
+        from .classification import evaluate, predict, read_jsonl, write_jsonl
+
+        rows = read_jsonl(args.input)
+        if args.command == "classifier-predict":
+            write_jsonl(args.output, predict(rows, args.revision, args.device))
+            print(canonical({"predictions": str(args.output), "decisions": len(rows)}))
+        else:
+            report = evaluate(rows)
+            with args.output.open("x") as output:
+                json.dump(report, output, indent=2, sort_keys=True, allow_nan=False)
+            print(canonical(report))
+        return
     if args.command == "models-lock":
         from .profiles import lock_profiles
 
