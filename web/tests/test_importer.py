@@ -11,6 +11,34 @@ from uwcourses_site.search_projection import TABLES as SEARCH_TABLES
 
 
 class PublicationTests(unittest.TestCase):
+    def test_shared_identity_retains_distinct_outcome_sources(self):
+        first = {
+            "text": "Communicate research findings.",
+            "source": "catalog",
+            "source_url": "https://guide.wisc.edu/courses/e_m_a/",
+            "observed_at": "2026-09-06T22:01:24+00:00",
+        }
+        second = {
+            **first,
+            "source_url": "https://guide.wisc.edu/courses/m_e/",
+            "observed_at": "2026-09-06T22:01:06+00:00",
+        }
+        merged = importer.variant_outcomes(
+            [
+                {"official_learning_outcomes_json": json.dumps([first])},
+                {"official_learning_outcomes_json": json.dumps([first, second])},
+            ]
+        )
+        course = importer.course_learning_fields(
+            {
+                "official_learning_outcomes_json": merged,
+                "llm_search_status": "valid",
+                "llm_skills": ["Existing skill"],
+            }
+        )
+        self.assertEqual(course["official_learning_outcomes"], [first, second])
+        self.assertEqual(course["llm_skills"], ["Existing skill"])
+
     def test_official_outcomes_require_source_identity_and_typed_context(self):
         for value in (
             {"text": "Write programs"},

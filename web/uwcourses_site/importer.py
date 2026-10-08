@@ -244,6 +244,23 @@ def grounded_learning_claims(claims, course, *, activities=False):
     return result
 
 
+def variant_outcomes(variants):
+    """Retain source records from aliases already grouped by the identity registry."""
+    result, seen = [], set()
+    for variant in variants:
+        values = json.loads(variant.get("official_learning_outcomes_json") or "[]")
+        if not isinstance(values, list):
+            raise ValueError(
+                "Invalid course learning field: official_learning_outcomes_json"
+            )
+        for value in values:
+            key = json.dumps(value, sort_keys=True)
+            if key not in seen:
+                result.append(value)
+                seen.add(key)
+    return json.dumps(result)
+
+
 def course_learning_fields(course):
     """Read additive enrichment fields, retaining compatibility with older v6 releases."""
     has_cited_skills = course.get("llm_skills_evidence_json") is not None
@@ -389,6 +406,8 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
     courses = {uid: dict(rs[0]) for uid, rs in variants.items()}
     for uid, c in courses.items():
         c["catalog_variants"] = variants[uid] if len(variants[uid]) > 1 else []
+        if len(variants[uid]) > 1:
+            c["official_learning_outcomes_json"] = variant_outcomes(variants[uid])
         c["subjects"] = sorted(
             {subject for r in variants[uid] for subject in r["subjects"]}
         )
