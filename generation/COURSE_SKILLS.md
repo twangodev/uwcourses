@@ -4,8 +4,12 @@ Outcomes are course-level source records, independent of LLM results. Guide
 collection reads its structured learning-outcome blocks. Enrollment collection
 reads explicit outcome fields when supplied; reconciliation also recovers them
 from older archived search hits. A field's absence is not evidence that a course
-has no outcomes. Enrollment's current public API availability still needs a
-successful live response or real archived payload verification.
+has no outcomes. Host-network verification received successful aggregate,
+search, and course enrollment-package responses. The sampled 100 search hits
+and COMP SCI 300 package contained no official outcomes; optional instructor
+outcome fields in the sample were null. Guide is the verified outcome source.
+Explicit enrollment outcome fields remain supported if future responses supply
+them, but their presence in the current API is not established.
 
 Each record retains text, source URL, explicit catalog year or term, and the
 original archived fetch time when known. Identical text from different sources
