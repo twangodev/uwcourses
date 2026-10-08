@@ -21,7 +21,7 @@ from .tasks import load_task
 from .store import Store, now
 
 
-WORKER_VERSION = 47
+WORKER_VERSION = 48
 
 
 def generation_schema(schema):

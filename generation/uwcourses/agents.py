@@ -42,12 +42,22 @@ from .unified import SECTIONS, compare_parsers, validate_section, review_handles
 ORCHESTRATOR = {"name": "pydantic-ai", "version": version("pydantic-ai-slim")}
 
 
+def indexed_outcome_view(view):
+    """Explicit citation indexes for the model; source records stay unchanged."""
+    if "official_learning_outcomes" in view:
+        view["official_learning_outcomes"] = [
+            {**outcome, "outcome_index": index}
+            for index, outcome in enumerate(view["official_learning_outcomes"])
+        ]
+    return view
+
+
 def evidence_view(root, needed, related=False):
     if related:
         keys = {"course_id", "course_reference", "title"}
         if "search_profile" in needed:
             keys.update({"description", "official_learning_outcomes", "source_url"})
-        return {k: v for k, v in root.items() if k in keys}
+        return indexed_outcome_view({k: v for k, v in root.items() if k in keys})
     keys = {"course_id", "course_reference", "title"}
     if "search_profile" in needed:
         keys.update(
@@ -75,7 +85,7 @@ def evidence_view(root, needed, related=False):
         from .requirements import shared_subject_references
 
         result["source_reference_spans"] = shared_subject_references(root)
-    return result
+    return indexed_outcome_view(result)
 
 
 def output_budget(profile, messages, task, schema, repair=False):
@@ -112,6 +122,9 @@ NATIVE_INSTRUCTIONS = (
     "Use get_course for bounded, read-only lookups when needed. "
     "Submit the three sections with submit_sections. On validation feedback, return null "
     "for accepted or deferred sections and repair only sections_needed. "
+    "Pass each section as a native JSON object or null, never a JSON-encoded string; "
+    "search_profile contains only its own fields, with summary as a {text, evidence} object, "
+    "and must not contain another section or section wrapper. "
     "Follow the supplied output schema."
 )
 
