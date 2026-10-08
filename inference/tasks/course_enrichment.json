@@ -1,6 +1,6 @@
 {
   "name": "course_enrichment",
-  "version": 17,
+  "version": 18,
   "workflow": "unified_v1",
   "tool_limits": {
     "max_calls": 6,

@@ -16,13 +16,12 @@ background. Discovery phrases are search aids, not additional factual claims.
 
 activity_tags is optional for historical results; emit it for new results. Use only
 these labels and require a root course description or outcome quote for each:
-- programming: students explicitly write, implement or debug computer programs.
-- data-analysis: students explicitly analyze, model, interpret or visualize data.
-- mathematical-reasoning: students explicitly construct proofs, derive mathematical
-  results or reason with mathematical arguments.
-- writing: students explicitly compose, revise or develop written work.
-- lab-work: students explicitly conduct laboratory experiments or use lab methods.
-- presentations: students explicitly deliver oral presentations or present work.
+- programming: Writing, modifying, or debugging computer programs.
+- data-analysis: Analyzing or interpreting datasets using statistical or computational methods.
+- mathematical-reasoning: Constructing mathematical arguments, proofs, or deriving mathematical results.
+- writing: Producing written arguments, reports, essays, or other substantial written work.
+- lab-work: Performing laboratory experiments or working with laboratory instruments.
+- presentations: Delivering oral presentations or presenting work to an audience.
 Classify activities students perform, not subjects merely discussed. A title, an
 assessment assumption, a prerequisite, or a quoted mention of an activity is not
 sufficient. Leave uncertain labels absent. Never infer assessment format, workload,

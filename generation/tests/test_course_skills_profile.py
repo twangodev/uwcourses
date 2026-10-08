@@ -4,10 +4,19 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
+from uwcourses.classification import LABELS
 from uwcourses.profiles import load_profile
 
 
 class CourseSkillsProfileTests(unittest.TestCase):
+    def test_generative_and_classifier_activity_definitions_match(self):
+        prompt = (
+            Path(__file__).resolve().parents[2] / "inference/prompts/search.md"
+        ).read_text()
+        for label, definition in LABELS.items():
+            with self.subTest(label=label):
+                self.assertIn(f"- {label}: {definition}", prompt)
+
     def test_dense_model_is_separate_and_revision_resolved(self):
         config = Path(__file__).resolve().parents[2] / "inference/models.toml"
         with patch("huggingface_hub.HfApi") as hub:
