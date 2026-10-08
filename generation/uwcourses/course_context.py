@@ -249,6 +249,7 @@ class CourseLookup:
                 k: full[k]
                 for k in [
                     "course_id",
+                    "source_url",
                     "course_reference",
                     "title",
                     "description",

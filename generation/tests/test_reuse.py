@@ -35,7 +35,9 @@ class ReuseTests(unittest.TestCase):
                 {
                     "task": {
                         "version": 5,
-                        "search_profile_evidence_version": 2,
+                        "search_profile_evidence_version": f.task[
+                            "search_profile_evidence_version"
+                        ],
                     }
                 },
             )
@@ -123,6 +125,21 @@ class ReuseTests(unittest.TestCase):
 
     def test_no_reviews_requires_no_new_sentiment(self):
         seed = self.index.seed("COMPSCI 300")
+        self.assertEqual(
+            seed["output"]["sections"]["student_experience"]["status"],
+            "insufficient_evidence",
+        )
+
+    def test_stricter_activity_policy_refreshes_search_and_preserves_other_sections(self):
+        self.index.jobs["job"][1]["task"]["search_profile_evidence_version"] = 2
+        self.index.task["search_profile_evidence_version"] = 3
+        seed = self.index.seed("COMPSCI 300")
+        self.assertEqual(
+            seed["output"]["sections"]["search_profile"]["status"], "invalid"
+        )
+        self.assertNotIn("search_profile", seed["section_origins"])
+        self.assertEqual(seed["output"]["sections"]["requirements"]["status"], "valid")
+        self.assertIn("requirements", seed["section_origins"])
         self.assertEqual(
             seed["output"]["sections"]["student_experience"]["status"],
             "insufficient_evidence",

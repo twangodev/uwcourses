@@ -1,6 +1,6 @@
 {
   "name": "course_enrichment",
-  "version": 18,
+  "version": 19,
   "workflow": "unified_v1",
   "tool_limits": {
     "max_calls": 6,
@@ -16,5 +16,5 @@
     "../prompts/experience.md"
   ],
   "schema_file": "../schemas/course_enrichment.json",
-  "search_profile_evidence_version": 2
+  "search_profile_evidence_version": 3
 }

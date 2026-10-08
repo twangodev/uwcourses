@@ -31,7 +31,9 @@ def outcome_quote(citation, course):
     outcome = outcomes[index]
     if citation.get("source_url") != outcome.get("source_url"):
         raise ValueError(
-            "Outcome evidence source_url must match the selected official source"
+            f"Outcome evidence {citation['course_id']}.official_learning_outcomes[{index}] "
+            f"source_url must match the selected official source: {outcome.get('source_url')!r}; "
+            "retain source_url and outcome_index on every official outcome citation."
         )
     quote = citation["quote"]
     if not quote.strip() or quote not in outcome["text"]:
@@ -212,8 +214,11 @@ def validate_section(name, candidate, task, root, lookup):
                 if "source_url" in citation and (
                     not course or citation["source_url"] != course.get("source_url")
                 ):
+                    expected_url = course.get("source_url") if course else None
                     raise ValueError(
-                        "Evidence source_url must match the supplied course source"
+                        f"Evidence {citation['course_id']}.{citation['field']} source_url "
+                        f"must match the supplied course source: {expected_url!r}. "
+                        "Correct this citation only; keep required URLs on official outcome citations."
                     )
                 quote = (
                     source_quote(citation["quote"], course.get(citation["field"], ""))
