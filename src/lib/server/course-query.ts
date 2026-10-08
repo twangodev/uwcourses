@@ -18,6 +18,10 @@ import {
 } from "$lib/course-facets";
 
 import { courseTagValues, type CourseTag } from "$lib/course-tags";
+import {
+  courseLearningRelease,
+  type CourseLearningRelease,
+} from "$lib/course-learning-release";
 
 export { graduateLevels, undergraduateLevels };
 
@@ -102,11 +106,14 @@ export function parseCourseFilters(
   params: URLSearchParams,
   term: string,
   availability: "offered" | "all",
+  release: Readonly<CourseLearningRelease> = courseLearningRelease,
 ): CourseQuery {
   const days = tokenList(params, "days").map(known(weekdayIndex, "day"));
   return {
     subjects: tokenList(params, "subject").map(subjectCode),
-    activity: optionalChoice(params, "activity", activityValues),
+    activity: release.activitySearch
+      ? optionalChoice(params, "activity", activityValues)
+      : undefined,
     tags: unique(tokenList(params, "tags").map(choice(courseTagValues, "tag"))),
     levels: unique(tokenList(params, "level").map(levelBand)),
     creditsMin: optionalNumber(params, "credits_min", 0, 20),
@@ -135,9 +142,12 @@ export function parseCourseFilters(
   };
 }
 
-export function compileCourseQuery(query: CourseQuery): CompiledCourseQuery {
+export function compileCourseQuery(
+  query: CourseQuery,
+  release: Readonly<CourseLearningRelease> = courseLearningRelease,
+): CompiledCourseQuery {
   const terms = [
-    activityTerm(query),
+    release.activitySearch ? activityTerm(query) : undefined,
     tagTerm(query),
     subjectTerm(query),
     levelTerm(query),

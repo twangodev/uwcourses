@@ -6,18 +6,44 @@ import {
 } from "../../src/lib/server/course-query";
 
 const term = "1272";
+const experimentalRelease = { derivedClaims: true, activitySearch: true };
 
 function filters(search: string) {
-  return parseCourseFilters(new URLSearchParams(search), term, "offered");
+  return parseCourseFilters(
+    new URLSearchParams(search),
+    term,
+    "offered",
+    experimentalRelease,
+  );
 }
 
 function compile(search: string, availability: "offered" | "all" = "offered") {
   return compileCourseQuery(
-    parseCourseFilters(new URLSearchParams(search), term, availability),
+    parseCourseFilters(
+      new URLSearchParams(search),
+      term,
+      availability,
+      experimentalRelease,
+    ),
+    experimentalRelease,
   );
 }
 
 describe("course filter compiler", () => {
+  it("ignores experimental activity filters in the outcomes-only production release", () => {
+    const query = parseCourseFilters(
+      new URLSearchParams("activity=programming&subject=COMPSCI"),
+      term,
+      "all",
+    );
+    expect(query.activity).toBeUndefined();
+    const compiled = compileCourseQuery({ ...query, activity: "programming" });
+    expect(compiled.where).not.toContain("activity_tags");
+    expect(compiled.values).toEqual(["COMPSCI"]);
+    expect(() =>
+      parseCourseFilters(new URLSearchParams("activity=unknown"), term, "all"),
+    ).not.toThrow();
+  });
   it("accepts boundary values and rejects malformed ones", () => {
     expect(
       filters("gpa_min=4&gpa_max=0&level=0,900&credits_min=0&credits_max=20")

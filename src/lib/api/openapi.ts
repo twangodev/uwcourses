@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { courseFacets } from "$lib/course-facets";
+import { courseLearningRelease } from "$lib/course-learning-release";
 import { registry, type DocumentKind } from "./schemas";
 
 const query = (
@@ -29,17 +30,21 @@ const searchParameters = [
   ...courseFacets.flatMap((facet) =>
     facet.params.map((param) => query(param.name, param.description)),
   ),
-  query("activity", "Evidence-backed course activity classification.", {
-    type: "string",
-    enum: [
-      "programming",
-      "data-analysis",
-      "mathematical-reasoning",
-      "writing",
-      "lab-work",
-      "presentations",
-    ],
-  }),
+  ...(courseLearningRelease.activitySearch
+    ? [
+        query("activity", "Evidence-backed course activity classification.", {
+          type: "string",
+          enum: [
+            "programming",
+            "data-analysis",
+            "mathematical-reasoning",
+            "writing",
+            "lab-work",
+            "presentations",
+          ],
+        }),
+      ]
+    : []),
   query("sort", "Course sort. gpa orders by historical GPA."),
   query("ranking", "Course collection ranking: easiest or hardest."),
 ];

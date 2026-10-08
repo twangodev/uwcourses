@@ -8,6 +8,7 @@
   } from "$lib/citations";
   import { courseFitObservations } from "$lib/course-fit";
   import { supportedLearningClaims } from "$lib/course-learning";
+  import { courseLearningRelease } from "$lib/course-learning-release";
   import type { Citation } from "$lib/types";
   import CourseNavigation from "$lib/components/CourseNavigation.svelte";
   import TermPicker from "$lib/components/TermPicker.svelte";
@@ -274,16 +275,17 @@
     content={courseWorkspace}
     learning={Boolean(
       c.official_learning_outcomes?.length ||
-      supportedLearningClaims(
-        c.skills_taught || [],
-        c.official_learning_outcomes || [],
-        c.description || "",
-      ).length ||
-      supportedLearningClaims(
-        c.activity_tags || [],
-        c.official_learning_outcomes || [],
-        c.description || "",
-      ).length,
+      (courseLearningRelease.derivedClaims &&
+        (supportedLearningClaims(
+          c.skills_taught || [],
+          c.official_learning_outcomes || [],
+          c.description || "",
+        ).length ||
+          supportedLearningClaims(
+            c.activity_tags || [],
+            c.official_learning_outcomes || [],
+            c.description || "",
+          ).length)),
     )}
     bind:navigationHeight
   >

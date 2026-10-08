@@ -11,6 +11,7 @@ describe("evidence-backed course learning", () => {
   it("renders official outcomes, derived claims and source passages in initial HTML", () => {
     const html = render(CourseLearning, {
       props: {
+        experimental: true,
         outcomes: [
           {
             text: "Analyze experimental data.",
@@ -90,7 +91,9 @@ describe("evidence-backed course learning", () => {
   });
 
   it("offers a removable activity filter without requiring facet data", () => {
-    expect(activeCourseFilters({ activity: "lab-work" }, [])).toContainEqual({
+    expect(
+      activeCourseFilters({ activity: "lab-work" }, [], undefined, true),
+    ).toContainEqual({
       id: "activity",
       label: "Learning activity: Lab work",
       keys: ["activity"],
@@ -154,7 +157,7 @@ describe("evidence-backed course learning", () => {
     expect(learningEvidence(claim, outcomes)).toEqual([]);
     expect(supportedLearningClaims([claim], outcomes)).toEqual([]);
     const html = render(CourseLearning, {
-      props: { outcomes, skills: [claim] },
+      props: { outcomes, skills: [claim], experimental: true },
     }).body;
     expect(html).not.toContain("Stale inferred skill");
     expect(html).not.toContain("Supporting course text");
@@ -176,8 +179,40 @@ describe("evidence-backed course learning", () => {
     ).toBeUndefined();
     expect(
       render(CourseLearning, {
-        props: { skills: [claim], description: "Build programs." },
+        props: {
+          skills: [claim],
+          description: "Build programs.",
+          experimental: true,
+        },
       }).body,
     ).toContain("Programming");
+  });
+  it("publishes official outcomes while hiding experimental claims and activity chips by default", () => {
+    const outcomes = [
+      {
+        text: "Analyze data.",
+        source: "UW Guide",
+        source_url: "https://guide.wisc.edu/courses/chem/",
+      },
+    ];
+    const claim = {
+      text: "Experimental data skill",
+      evidence: [
+        {
+          field: "official_learning_outcomes",
+          outcome_index: 0,
+          quote: "Analyze data.",
+          source_url: outcomes[0].source_url,
+        },
+      ],
+    };
+    const html = render(CourseLearning, {
+      props: { outcomes, skills: [claim], activities: [claim] },
+    }).body;
+    expect(html).toContain("Official learning outcomes");
+    expect(html).toContain("Analyze data.");
+    expect(html).not.toContain("Experimental data skill");
+    expect(html).not.toContain("Skills and activities");
+    expect(activeCourseFilters({ activity: "lab-work" }, [])).toEqual([]);
   });
 });

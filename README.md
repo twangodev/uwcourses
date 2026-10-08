@@ -41,6 +41,12 @@ bun run dev
 
 See the [local data pipeline](generation/README.md).
 
+The current release shows official course learning outcomes. New inferred skills,
+activities and activity filters remain disabled in `src/lib/course-learning-release.ts`
+until their pilot meets the documented acceptance criteria. Existing course summaries
+and search behavior remain available. Experimental component/query tests opt in
+explicitly; production uses the release defaults.
+
 See the [contributing guide](CONTRIBUTING.md) to help improve the project. The public API contract is generated at `/openapi.json`.
 
 ## Contributions

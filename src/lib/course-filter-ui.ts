@@ -7,6 +7,7 @@ import { courseTags, type CourseTag } from "./course-tags";
 import { departmentLabel } from "./departments";
 import { courseTitle } from "./format";
 import { activityLabel } from "./course-learning";
+import { courseLearningRelease } from "./course-learning-release";
 import type { Status } from "./types";
 
 export const dayLabels = {
@@ -61,8 +62,13 @@ export function activeCourseFilters(
   filters: Record<string, string>,
   designations: NonNullable<Status["designations"]>,
   instructorName?: string | null,
+  activitySearch = courseLearningRelease.activitySearch,
 ) {
-  const active = courseFacets.flatMap<{ id: string; label: string; keys: string[] }>((facet) => {
+  const active = courseFacets.flatMap<{
+    id: string;
+    label: string;
+    keys: string[];
+  }>((facet) => {
     const keys = facet.params.map((param) => param.name);
     if (
       !filters[keys[0]] &&
@@ -120,9 +126,8 @@ export function activeCourseFilters(
         label = values
           .map(
             (token) =>
-              designations.find(
-                (row) => `${row.family}:${row.value}` === token,
-              )?.label ?? token,
+              designations.find((row) => `${row.family}:${row.value}` === token)
+                ?.label ?? token,
           )
           .join(" or ");
         break;
@@ -147,7 +152,7 @@ export function activeCourseFilters(
     }
     return [{ id: facet.id, label, keys }];
   });
-  if (filters.activity)
+  if (activitySearch && filters.activity)
     active.push({
       id: "activity",
       label: `Learning activity: ${activityLabel(filters.activity)}`,

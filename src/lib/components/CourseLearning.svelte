@@ -7,23 +7,28 @@
   } from "$lib/course-learning";
   import { safeUrl, termName } from "$lib/format";
   import CourseSection from "./CourseSection.svelte";
+  import { courseLearningRelease } from "$lib/course-learning-release";
 
   let {
     outcomes = [],
     skills = [],
     activities = [],
     description = "",
+    experimental = courseLearningRelease.derivedClaims,
   }: {
     outcomes?: OfficialLearningOutcome[];
     skills?: Claim[];
     activities?: Claim[];
     description?: string;
+    experimental?: boolean;
   } = $props();
   const supportedSkills = $derived(
-    supportedLearningClaims(skills, outcomes, description),
+    experimental ? supportedLearningClaims(skills, outcomes, description) : [],
   );
   const supportedActivities = $derived(
-    supportedLearningClaims(activities, outcomes, description),
+    experimental
+      ? supportedLearningClaims(activities, outcomes, description)
+      : [],
   );
 
   function context(source: OfficialLearningOutcome | Citation) {
