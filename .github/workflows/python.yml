@@ -7,7 +7,7 @@ concurrency:
   cancel-in-progress: true
 jobs:
   check:
-    name: Python
+    name: Ruff Linting (generation)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -20,3 +20,16 @@ jobs:
       - run: uv run --locked ruff format --check generation scripts web/uwcourses_site web/tests
       - run: uv run --locked ruff check generation scripts web/uwcourses_site web/tests
       - run: uv run --locked python -m unittest discover -s generation/tests
+  search:
+    name: Ruff Linting (search)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - run: uv sync --locked --dev
+      - run: uv run --locked ruff format --check web/uwcourses_site web/tests
+      - run: uv run --locked ruff check web/uwcourses_site web/tests
