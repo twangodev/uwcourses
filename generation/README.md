@@ -459,6 +459,48 @@ validator feedback, and truncation recovery conversations. `has_conversation`
 distinguishes older outputs without recorded histories. Traces are separate from
 current-course rows and include rejected and unselected experiments for auditing.
 
+New exports expose recorded root histories as `llm_traces.messages`, using
+Hugging Face conversational `role`/`content` messages. `llm_conversations` holds
+each nonempty root, subtask, grounding, repair or recovery history separately;
+join on `trace_id`. Its `source_path` is a JSON pointer into the unchanged
+`output_json`, and `source_hash` identifies that recorded branch. Separate
+branches are never concatenated into an invented conversation.
+
+`conversation_status` distinguishes converted, partial, unsupported, empty and
+missing root histories; `conversation_issues` identifies unsupported parts.
+`has_any_conversation` and `conversation_count` also account for nested histories.
+Thinking is retained in `thinking`, tool calls in `tool_calls`, and typed tool
+results and validator feedback are represented as deterministic JSON in
+`content`. `source_parts` and the original payload retain their source values.
+Tools are included only when their declarations were recorded; historical
+declarations and missing system prompts are never reconstructed. Not every
+recorded tool call has a response, so these archives require selection and
+validation before use as training examples.
+
+Read these configs with `datasets>=4.7`: their Parquet feature metadata uses HF
+`Json` features so heterogeneous tool arguments decode to native dictionaries.
+Plain Arrow readers may expose JSON string storage instead. The normalized
+messages are a documented projection, not a token-exact reproduction of every
+historical provider request. All original trace columns remain available.
+
+To migrate an existing complete publication without scraping or inference:
+
+```sh
+uv run uwcourses traces-refresh \
+  --publication /path/to/existing-publication \
+  --parent-revision FULL_HF_COMMIT_SHA \
+  --output /path/to/new-candidate
+uv run uwcourses traces-publish \
+  --candidate /path/to/new-candidate \
+  --repo twangodev/uwcourses \
+  --parent-revision FULL_HF_COMMIT_SHA
+```
+
+Review the generated report before publishing. Migration checks all parent
+checksums, preserves original trace columns and every unrelated data file,
+and writes a new manifest. Publication requires the pinned parent to remain
+current and verifies the complete remote file set after the atomic commit.
+
 Long repair runs can resume with `enrich-resume JOB_ID --concurrency 256
 --request-timeout-seconds 1800`. Execution overrides are recorded on new results;
 they do not change model sampling, job identity, or completed checkpoints.

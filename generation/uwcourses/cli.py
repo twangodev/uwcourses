@@ -159,6 +159,20 @@ def parser():
     publish_outcomes.add_argument("--candidate", type=Path, required=True)
     publish_outcomes.add_argument("--repo", required=True)
     publish_outcomes.add_argument("--parent-revision", required=True)
+    traces = commands.add_parser(
+        "traces-refresh",
+        help="Prepare recorded role/content trace columns without inference",
+    )
+    traces.add_argument("--publication", type=Path, required=True)
+    traces.add_argument("--parent-revision", required=True)
+    traces.add_argument("--output", type=Path, required=True)
+    publish_traces = commands.add_parser(
+        "traces-publish",
+        help="Publish a reviewed trace supplement with a pinned parent guard",
+    )
+    publish_traces.add_argument("--candidate", type=Path, required=True)
+    publish_traces.add_argument("--repo", required=True)
+    publish_traces.add_argument("--parent-revision", required=True)
     models = commands.add_parser("models-lock")
     models.add_argument("--models-config", type=Path, required=True)
     models.add_argument("--profile", action="append", required=True)
@@ -247,6 +261,22 @@ def execute_run(store, run):
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == "traces-refresh":
+        from .traces_refresh import refresh_traces
+
+        print(
+            canonical(
+                refresh_traces(args.publication, args.parent_revision, args.output)
+            )
+        )
+        return
+    if args.command == "traces-publish":
+        from .traces_refresh import publish_traces
+
+        print(
+            canonical(publish_traces(args.candidate, args.repo, args.parent_revision))
+        )
+        return
     if args.command == "outcomes-refresh":
         from .outcomes_refresh import refresh_outcomes
 

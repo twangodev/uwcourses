@@ -8,6 +8,7 @@ import sqlite3
 
 import pyarrow as pa
 import pyarrow.parquet as pq
+from datasets import Dataset
 
 from .review_data import (
     SCHEMA as REVIEW_SCHEMA,
@@ -16,6 +17,7 @@ from .review_data import (
 )
 
 from .models import canonical, digest
+from .trace_format import CONVERSATION_FEATURES, normalize_trace, trace_features
 from .identities import catalog_identities
 from .buildings import (
     SCHEMA as BUILDING_SCHEMA,
@@ -132,7 +134,12 @@ SCHEMAS = {
         ]
     ),
 }
+TRACE_FEATURES = trace_features(SCHEMAS["llm_traces"])
+SCHEMAS["llm_traces"] = TRACE_FEATURES.arrow_schema
+SCHEMAS["llm_conversations"] = CONVERSATION_FEATURES.arrow_schema
+
 DESCRIPTIONS = {
+    "llm_conversations": "One row per nonempty recorded conversation, including primary, subtask, checker, repair and recovery branches. source_path is a JSON pointer into the parent llm_traces.output_json; parent_source_path identifies its containing object, not an inferred execution relationship. HF messages use native dictionary tool arguments through datasets>=4.7 Json features. Missing historical tools are not reconstructed.",
     "llm_traces": "One row per archived job/course output, including unselected experiments. output_json preserves recorded model thinking, native conversations, tools, validator feedback, truncation recovery traces, rejected candidates and final sections. job_spec_json records task and inference settings. Older jobs may lack a conversation; missing traces are not reconstructed. Join courses through run_id/course_id and current outputs through llm_output_id. These are model-generated traces, not authoritative course facts.",
     "courses_current": "One row per course in the selected source snapshot. Credits come from matched current enrollment offerings; null means unavailable. LLM fields use the newest explicitly selected output per course (created_at, job_id); invalid sections never become search text or usable ASTs.",
     "courses_history": "One row per observed course per source run, with directly readable catalog fields. This is observation history, not inferred validity intervals or one row per semester. record_version_id links to the complete archival record.",
@@ -203,37 +210,48 @@ def catalog_record(course_id, record):
     }
 
 
-def write_rows(path, schema, rows, max_text_bytes=None):
+def write_rows(path, schema, rows, max_text_bytes=None, features=None):
+    def table(batch):
+        # Arrow cannot directly construct nested JSON extension arrays from a
+        # Python list. Datasets performs the feature-aware storage casts.
+        if features is not None:
+            return Dataset.from_dict(
+                {key: [row.get(key) for row in batch] for key in features},
+                features=features,
+            ).data.table
+        return pa.Table.from_pylist(batch, schema=schema)
+
+    def text_size(value):
+        if isinstance(value, str):
+            return len(value.encode("utf-8"))
+        if isinstance(value, dict):
+            return sum(text_size(item) for item in value.values())
+        if isinstance(value, list):
+            return sum(text_size(item) for item in value)
+        return 0
+
     count, batch, text_bytes = 0, [], 0
     with pq.ParquetWriter(
         path, schema, compression="zstd", write_page_index=True
     ) as writer:
         for row in rows:
-            row_bytes = (
-                sum(
-                    len(value.encode("utf-8"))
-                    for value in row.values()
-                    if isinstance(value, str)
-                )
-                if max_text_bytes is not None
-                else 0
-            )
+            row_bytes = text_size(row) if max_text_bytes is not None else 0
             if (
                 batch
                 and max_text_bytes is not None
                 and text_bytes + row_bytes > max_text_bytes
             ):
-                writer.write_table(pa.Table.from_pylist(batch, schema=schema))
+                writer.write_table(table(batch))
                 count += len(batch)
                 batch, text_bytes = [], 0
             batch.append(row)
             text_bytes += row_bytes
             if len(batch) == 4096:
-                writer.write_table(pa.Table.from_pylist(batch, schema=schema))
+                writer.write_table(table(batch))
                 count += len(batch)
                 batch, text_bytes = [], 0
         if batch:
-            writer.write_table(pa.Table.from_pylist(batch, schema=schema))
+            writer.write_table(table(batch))
             count += len(batch)
     if pq.read_metadata(path).num_rows != count:
         raise ValueError(f"Public row count mismatch: {path.name}")
@@ -719,8 +737,20 @@ def write_public(database, destination, release_id, source_run, registry_path=No
         counts["llm_traces"] = write_rows(
             directory / "llm_traces.parquet",
             SCHEMAS["llm_traces"],
-            traces(),
+            (normalize_trace(row)[0] for row in traces()),
             max_text_bytes=16 * 1024 * 1024,
+            features=TRACE_FEATURES,
+        )
+        counts["llm_conversations"] = write_rows(
+            directory / "llm_conversations.parquet",
+            SCHEMAS["llm_conversations"],
+            (
+                conversation
+                for row in traces()
+                for conversation in normalize_trace(row)[1]
+            ),
+            max_text_bytes=16 * 1024 * 1024,
+            features=CONVERSATION_FEATURES,
         )
         counts.update(write_shape(db, directory, runs, source_run, identities))
         counts["buildings_current"] = write_rows(
@@ -826,6 +856,10 @@ def dataset_card(
                 "```",
                 "",
                 "See [schema](public/schema.json) for tables and columns; [manifest](manifest.json) for provenance and checksums. `llm_traces` retains recorded outputs and model revisions.",
+                "",
+                "LLM conversations follow the [Hugging Face messages/tool convention](https://huggingface.co/docs/trl/dataset_formats). Use `datasets>=4.7` for native `Json()` tool arguments: `load_dataset` decodes dictionary arguments without custom preprocessing. Plain Arrow readers expose JSON extension storage. `llm_conversations` contains separately recorded primary, subtask, checker, repair and recovery branches; source paths identify their exact location in the unchanged parent `output_json`.",
+                "",
+                "Missing histories and historical tool schemas remain unavailable; no messages are reconstructed. Typed original parts are retained in `source_parts`, and `output_json`, `job_spec_json` and `usage_json` remain the lossless archive. `thinking` is a template-dependent extension. These traces include rejected answers and feedback and are not automatically curated training examples.",
                 "",
                 "This dataset is not affiliated with or endorsed by the University of Wisconsin–Madison.",
                 "",

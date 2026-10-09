@@ -4,6 +4,8 @@ import asyncio
 import copy
 import json
 import os
+from contextlib import contextmanager
+from contextvars import ContextVar
 from importlib.metadata import version
 
 import jsonschema
@@ -40,6 +42,32 @@ from .models import canonical, digest
 from .unified import SECTIONS, compare_parsers, validate_section, review_handles
 
 ORCHESTRATOR = {"name": "pydantic-ai", "version": version("pydantic-ai-slim")}
+_TOOL_REQUESTS = ContextVar("coursemap_tool_requests", default=None)
+
+
+@contextmanager
+def capture_tool_definitions():
+    """Isolate actual provider request schemas, including nested model runs."""
+    requests = []
+    token = _TOOL_REQUESTS.set(requests)
+    try:
+        yield requests
+    finally:
+        _TOOL_REQUESTS.reset(token)
+
+
+def recorded_tool_provenance(requests):
+    if not requests:
+        # Injected non-OpenAI models and validation-only runs did not observe wire tools.
+        return {}
+    definitions = requests[0]["tools"]
+    return {
+        "tool_requests": copy.deepcopy(requests),
+        # Never present one schema as constant when the request definitions changed.
+        "tools": copy.deepcopy(definitions)
+        if all(request["tools"] == definitions for request in requests)
+        else None,
+    }
 
 
 def indexed_outcome_view(view):
@@ -146,6 +174,23 @@ def serialize_messages(messages):
 
 
 class PinnedModel(OpenAIChatModel):
+    def _get_tool_choice(self, model_settings, model_request_parameters):
+        # This pinned PydanticAI hook returns the exact post-profile OpenAI mapping
+        # subsequently passed to completions.create; do not prepare schemas twice.
+        tools, choice = super()._get_tool_choice(
+            model_settings, model_request_parameters
+        )
+        requests = _TOOL_REQUESTS.get()
+        if requests is not None:
+            requests.append(
+                {
+                    "request_index": len(requests),
+                    "tools": copy.deepcopy(tools),
+                    "output_mode": model_request_parameters.output_mode,
+                }
+            )
+        return tools, choice
+
     async def request(self, messages, model_settings, model_request_parameters):
         response = await super().request(
             messages, model_settings, model_request_parameters
@@ -283,6 +328,7 @@ async def _conversation(profile, task, payload, context, model=None):
     usage = RunUsage()
     request_failure = None
     recovery_events = []
+    tool_requests = []
     direct_recovery = bool(
         previous
         and (
@@ -463,11 +509,14 @@ async def _conversation(profile, task, payload, context, model=None):
                 )
             return value
 
-        nonlocal request_failure, direct_recovery
+        nonlocal request_failure, direct_recovery, tool_requests
         current_history, prompt = history, initial
         all_messages = []
         for recovery in range(2):
-            with capture_run_messages() as messages:
+            with (
+                capture_run_messages() as messages,
+                capture_tool_definitions() as tool_requests,
+            ):
                 try:
                     await agent.run(
                         prompt,
@@ -498,6 +547,7 @@ async def _conversation(profile, task, payload, context, model=None):
                                 "conversation": serialize_messages(messages),
                                 "thinking": False,
                                 "context_compacted": True,
+                                **recorded_tool_provenance(tool_requests),
                             }
                         )
                         direct_recovery = True
@@ -536,6 +586,7 @@ async def _conversation(profile, task, payload, context, model=None):
                                 "reason": str(exc),
                                 "conversation": serialize_messages(messages),
                                 "thinking": False,
+                                **recorded_tool_provenance(tool_requests),
                             }
                         )
                         direct_recovery = True
@@ -645,6 +696,15 @@ async def _conversation(profile, task, payload, context, model=None):
             if k in profile
         },
         "review_coverage": {"attributable_reviews": len(root["reviews"])},
+        **(
+            {
+                key: copy.deepcopy(previous["provenance"][key])
+                for key in ("tools", "tool_requests")
+                if key in previous.get("provenance", {})
+            }
+            if validation_only
+            else recorded_tool_provenance(tool_requests)
+        ),
     }
     if seed:
         provenance.update(
@@ -781,6 +841,9 @@ async def _generic(profile, task, payload, model=None):
                                     "error": str(exc),
                                     "conversation": serialize_messages(check_messages),
                                     "inference": check_settings,
+                                    **recorded_tool_provenance(
+                                        getattr(exc, "tool_requests", [])
+                                    ),
                                 }
                             )
                             raise
@@ -850,13 +913,15 @@ async def _generic(profile, task, payload, model=None):
                     if part.part_kind == "system-prompt":
                         part.content = task["prompt"]
         try:
-            result = await agent.run(
-                canonical(request),
-                message_history=history,
-                usage_limits=UsageLimits(request_limit=3),
-            )
+            with capture_tool_definitions() as tool_requests:
+                result = await agent.run(
+                    canonical(request),
+                    message_history=history,
+                    usage_limits=UsageLimits(request_limit=3),
+                )
         except Exception as exc:
             exc.grounding_checks = grounding_checks
+            exc.tool_requests = tool_requests
             raise
         output = result.output
         output.setdefault("provenance", {}).update(
@@ -867,6 +932,7 @@ async def _generic(profile, task, payload, model=None):
             task_hash=digest(task),
             grounding_checks=grounding_checks,
             history_compacted=bool(payload.get("_compact_history")),
+            **recorded_tool_provenance(tool_requests),
         )
         usage = result.usage
         return output, {
