@@ -27,6 +27,7 @@ dependencies = [
     "pyyaml>=6,<7",
     "sqlalchemy>=2.0,<3",
     "alembic>=1.16,<2",
+    "datasets>=4.7,<5",
 ]
 
 [dependency-groups]
