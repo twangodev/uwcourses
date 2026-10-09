@@ -13,15 +13,41 @@ export function activityLabel(value: string) {
   return activityLabels[value as keyof typeof activityLabels] ?? value;
 }
 
-/** Group identical displayed statements while retaining every source observation. */
-export function groupedLearningOutcomes(outcomes: OfficialLearningOutcome[]) {
+function comparableLearningText(text: string) {
+  return text
+    .normalize("NFKC")
+    .toLocaleLowerCase("en-US")
+    .trim()
+    .replace(/[.!?]+$/u, "")
+    .replace(/\s+/gu, " ")
+    .trim();
+}
+
+function descriptionComparisonText(text: string) {
+  return comparableLearningText(text)
+    .replace(/[.!?;:]+(?=\s|$)/gu, " ")
+    .replace(/\s+/gu, " ");
+}
+
+/** Group display equivalents, omit description repeats, and retain source records. */
+export function groupedLearningOutcomes(
+  outcomes: OfficialLearningOutcome[],
+  description = "",
+) {
+  const overview = ` ${descriptionComparisonText(description)} `;
   const groups = new Map<
     string,
     { text: string; sources: OfficialLearningOutcome[] }
   >();
   for (const outcome of outcomes) {
+    const text = comparableLearningText(outcome.text);
+    if (
+      !text ||
+      overview.includes(` ${descriptionComparisonText(outcome.text)} `)
+    )
+      continue;
     const key = JSON.stringify([
-      outcome.text,
+      text,
       outcome.term ?? null,
       outcome.catalog_year ?? null,
     ]);

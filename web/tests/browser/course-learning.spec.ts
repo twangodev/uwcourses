@@ -13,23 +13,58 @@ test("official learning outcomes and citations render before and after hydration
     "List and describe common operations for List, Stack, Queue, Priority Queue, Tree.";
   for (const coursePage of [initialPage, page]) {
     if (coursePage === page) {
+      await page.emulateMedia({ reducedMotion: "reduce" });
       await page.goto("/courses/COMPSCI_300");
       await expect(page.locator("html")).toHaveAttribute(
         "data-hydrated",
         "true",
       );
+      const carousel = page.getByRole("region", {
+        name: "Student takeaways",
+        exact: true,
+      });
+      await expect(carousel.locator(".learning-slide")).toBeHidden();
+      await carousel.getByRole("button", { name: "Previous takeaway" }).click();
     }
-    const outcomes = coursePage.getByRole("region", {
+    const outcomes = coursePage.locator("#overview").getByRole("region", {
       name: "Official learning outcomes",
       exact: true,
     });
     await expect(outcomes).toBeVisible();
+    await expect(
+      coursePage.locator(".overview-take .learning-slide"),
+    ).toBeVisible();
+    await expect(
+      coursePage.locator("#overview > article#learning"),
+    ).toHaveCount(0);
+    await expect(coursePage.locator("#overview > *")).toHaveCount(2);
     const statement = outcomes.locator("li").filter({ hasText: outcome });
     await expect(statement.locator("p")).toHaveText(outcome);
     await expect(
-      statement.getByRole("link", { name: "catalog", exact: true }),
+      outcomes.getByRole("link", { name: "UW Guide", exact: true }),
     ).toHaveAttribute("href", "https://guide.wisc.edu/courses/comp_sci/");
-    await expect(statement).toContainText("Catalog 2026-2027");
+    await expect(outcomes.getByRole("link")).toHaveCount(1);
+    await expect(statement.getByRole("link")).toHaveCount(0);
+    await expect(outcomes).not.toContainText("Catalog 2026-2027");
+    await expect(outcomes).not.toContainText("Recorded");
+    await expect(
+      coursePage.locator('.course-navigation a[href="#learning"]'),
+    ).toHaveCount(0);
+    await expect(
+      coursePage.getByRole("heading", {
+        name: "What you’ll be able to do",
+        exact: true,
+      }),
+    ).toBeVisible();
+    if (coursePage === page) {
+      const carousel = page.getByRole("region", {
+        name: "Student takeaways",
+        exact: true,
+      });
+      await carousel.getByRole("button", { name: "Next takeaway" }).click();
+      await expect(carousel.locator(".learning-slide")).toBeHidden();
+      await expect(carousel.locator(".claim")).toBeVisible();
+    }
   }
   await context.close();
 });
