@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { render } from "svelte/server";
-import CourseLearning from "../../src/lib/components/CourseLearning.svelte";
+import RotatingClaims from "../../src/lib/components/RotatingClaims.svelte";
 import { activeCourseFilters } from "../../src/lib/course-filter-ui";
 import {
   learningEvidence,
@@ -9,6 +9,20 @@ import {
 } from "../../src/lib/course-learning";
 
 describe("evidence-backed course learning", () => {
+  it("includes learning in the summary slide count and initial HTML without a separate card", () => {
+    const html = render(RotatingClaims, {
+      props: {
+        claims: [{ text: "Students discuss their experiences." }],
+        outcomes: [{ text: "Design experiments.", source: "catalog" }],
+      },
+    }).body;
+    expect(html).toContain('aria-roledescription="carousel"');
+    expect(html).toContain('aria-label="1 of 2"');
+    expect(html).toContain('aria-label="2 of 2"');
+    expect(html).toContain("Design experiments.");
+    expect(html).not.toContain("<article");
+    expect(html).not.toContain('class="learning-content"');
+  });
   it("groups identical cross-listed statements without losing provenance or merging different catalog contexts", () => {
     const base = {
       text: "Analyze observations.",
@@ -32,16 +46,61 @@ describe("evidence-backed course learning", () => {
     expect(groups).toHaveLength(3);
     expect(groups[0].sources).toEqual(outcomes.slice(0, 2));
     expect(outcomes).toHaveLength(4);
-    const html = render(CourseLearning, { props: { outcomes } }).body;
+    const html = render(RotatingClaims, { props: { outcomes } }).body;
     expect(html.match(/Analyze observations\./g)).toHaveLength(3);
     expect(html).toContain('href="https://guide.wisc.edu/courses/chem/"');
     expect(html).toContain('href="https://guide.wisc.edu/courses/biochem/"');
-    expect(html).toContain("Recorded 2026-10-01");
-    expect(html).toContain("Recorded 2026-10-08");
-    expect(html).toContain("Catalog 2025-2026");
+    expect(html).not.toContain("Recorded 2026-10-01");
+    expect(html).not.toContain("Recorded 2026-10-08");
+    expect(html).not.toContain("Catalog 2025-2026");
+    expect(
+      html.match(/href="https:\/\/guide.wisc.edu\/courses\/chem\/"/g),
+    ).toHaveLength(1);
+  });
+  it("removes full description repeats and punctuation-only duplicates without deleting new abilities or changing source records", () => {
+    const outcomes = [
+      { text: "Study animal behavior.", source: "catalog" },
+      { text: "Design experiments.", source: "catalog" },
+      { text: "Design experiments", source: "catalog" },
+      { text: "Analyze experimental data.", source: "catalog" },
+      { text: "Learn algebra.", source: "catalog" },
+    ];
+    const description = "Study animal behavior; learn algebraic methods.";
+    const groups = groupedLearningOutcomes(outcomes, description);
+    expect(groups.map((group) => group.text)).toEqual([
+      "Design experiments.",
+      "Analyze experimental data.",
+      "Learn algebra.",
+    ]);
+    expect(groups[0].sources).toEqual(outcomes.slice(1, 3));
+    expect(outcomes).toHaveLength(5);
+    const html = render(RotatingClaims, {
+      props: { outcomes, description },
+    }).body;
+    expect(html).not.toContain("Study animal behavior.");
+    expect(html).toContain("What you’ll be able to do");
+  });
+  it("omits the learning section when it would only repeat the description", () => {
+    const html = render(RotatingClaims, {
+      props: {
+        description: "Analyze data.",
+        outcomes: [{ text: "Analyze data.", source: "catalog" }],
+      },
+    }).body;
+    expect(html).not.toContain('id="learning"');
+  });
+  it("keeps meaningful punctuation in languages, numbers and hyphenated terms", () => {
+    const outcomes = [
+      { text: "Program in C++.", source: "catalog" },
+      { text: "Program in C.", source: "catalog" },
+      { text: "Calculate 1.5 units.", source: "catalog" },
+      { text: "Calculate 15 units.", source: "catalog" },
+    ];
+    expect(groupedLearningOutcomes(outcomes)).toHaveLength(4);
+    expect(groupedLearningOutcomes(outcomes, "Program in C.")).toHaveLength(3);
   });
   it("renders official outcomes, derived claims and source passages in initial HTML", () => {
-    const html = render(CourseLearning, {
+    const html = render(RotatingClaims, {
       props: {
         experimental: true,
         outcomes: [
@@ -91,23 +150,23 @@ describe("evidence-backed course learning", () => {
     expect(html).toContain("Data analysis");
     expect(html).toContain('href="https://guide.wisc.edu/courses/chem/"');
     expect(html).toContain("AI-derived from official course text");
-    expect(html).toContain("Catalog 2026-2027");
+    expect(html).not.toContain("Catalog 2026-2027");
   });
 
   it("keeps older datasets quiet and suppresses claims with no supporting quote", () => {
-    expect(render(CourseLearning).body).not.toContain("What you can learn");
+    expect(render(RotatingClaims).body).not.toContain("What you can learn");
     const skills = [
       { text: "Unsupported skill" },
       { text: "Empty quote", citations: [{ quote: " " }] },
     ];
     expect(supportedLearningClaims(skills)).toEqual([]);
-    expect(render(CourseLearning, { props: { skills } }).body).not.toContain(
+    expect(render(RotatingClaims, { props: { skills } }).body).not.toContain(
       "Unsupported skill",
     );
   });
 
   it("renders unsafe source URLs as text without an active link", () => {
-    const html = render(CourseLearning, {
+    const html = render(RotatingClaims, {
       props: {
         outcomes: [
           {
@@ -188,7 +247,7 @@ describe("evidence-backed course learning", () => {
     };
     expect(learningEvidence(claim, outcomes)).toEqual([]);
     expect(supportedLearningClaims([claim], outcomes)).toEqual([]);
-    const html = render(CourseLearning, {
+    const html = render(RotatingClaims, {
       props: { outcomes, skills: [claim], experimental: true },
     }).body;
     expect(html).not.toContain("Stale inferred skill");
@@ -210,7 +269,7 @@ describe("evidence-backed course learning", () => {
       learningEvidence(claim, [], "Build programs.")[0].catalog_year,
     ).toBeUndefined();
     expect(
-      render(CourseLearning, {
+      render(RotatingClaims, {
         props: {
           skills: [claim],
           description: "Build programs.",
@@ -238,7 +297,7 @@ describe("evidence-backed course learning", () => {
         },
       ],
     };
-    const html = render(CourseLearning, {
+    const html = render(RotatingClaims, {
       props: { outcomes, skills: [claim], activities: [claim] },
     }).body;
     expect(html).toContain("Official learning outcomes");
