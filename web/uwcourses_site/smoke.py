@@ -11,13 +11,14 @@ from .deployment import Release
 PROBE_HEADERS = {
     "Cache-Control": "no-cache",
     "Accept": "application/json",
-    # Browser Integrity Check rejects non-standard bare product tokens.
-    "User-Agent": "Mozilla/5.0 (compatible; uwcourses-deploy/1.0; +https://uwcourses.com)",
+    "User-Agent": "uwcourses-deploy/1",
 }
 
 
-def probe_json(url: str):
-    response = requests.get(url, headers=PROBE_HEADERS, timeout=15)
+def probe_json(url: str, headers: dict[str, str] | None = None):
+    response = requests.get(
+        url, headers={**PROBE_HEADERS, **(headers or {})}, timeout=15
+    )
     try:
         response.raise_for_status()
     except requests.HTTPError as failure:
@@ -29,7 +30,13 @@ def probe_json(url: str):
     return response.json()
 
 
-def smoke_check(base_url: str, release: Release, commit: str) -> None:
+def smoke_check(
+    base_url: str,
+    release: Release,
+    commit: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> None:
     probe = uuid4().hex
     paths = [
         ("/api/status", {}),
@@ -50,7 +57,7 @@ def smoke_check(base_url: str, release: Release, commit: str) -> None:
                         "_probe": f"{probe}-{attempt}",
                     }
                 )
-                data = probe_json(f"{base_url.rstrip('/')}{path}?{query}")
+                data = probe_json(f"{base_url.rstrip('/')}{path}?{query}", headers)
                 if data.get("revision") != release.revision:
                     raise ValueError(f"{path}: unexpected dataset revision")
                 if path == "/api/status":

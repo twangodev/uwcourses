@@ -73,6 +73,7 @@ def main():
         parser.add_argument("--first-deployment", action="store_true")
         parser.add_argument("--base-url", default="https://uwcourses.com")
         parser.add_argument("--commit")
+        parser.add_argument("--service-probe", action="store_true")
         args = parser.parse_args()
         if args.command == "assets-check":
             check_assets(args.root)
@@ -84,9 +85,17 @@ def main():
                     parser.error("smoke-check requires --commit")
                 from .smoke import smoke_check
 
-                smoke_check(
-                    args.base_url, Release.read(args.site / "status.json"), args.commit
-                )
+                release = Release.read(args.site / "status.json")
+                if args.service_probe:
+                    from .production_probe import production_probe
+
+                    with production_probe(args.config, args.base_url) as (
+                        base,
+                        headers,
+                    ):
+                        smoke_check(base, release, args.commit, headers=headers)
+                else:
+                    smoke_check(args.base_url, release, args.commit)
             elif args.command == "release-check":
                 release = Release.read(args.site / "status.json")
                 print(f"Verified complete release {release.revision}")
