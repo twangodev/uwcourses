@@ -167,3 +167,127 @@ def publish_parquet(store, release_id, repo_id, api=None, download=None):
             parquet_files=sum(n.endswith(".parquet") for n in paths),
             bytes=sum(v["bytes"] for v in expected.values()),
         )
+
+
+def safe_relative(name):
+    path = Path(name)
+    if path.is_absolute() or ".." in path.parts:
+        raise ValueError("Publication manifest contains an unsafe path")
+    return path
+
+
+def verify_file(path, expected):
+    if path.stat().st_size != expected["bytes"] or checksum(path) != expected["sha256"]:
+        raise ValueError(f"Source publication checksum mismatch: {path.name}")
+
+
+def publish_candidate(
+    candidate, repo_id, parent_revision, *, commit_message, api=None, download=None
+):
+    """Publish verified supplement files atomically; preserve pinned remote parent."""
+    from huggingface_hub import CommitOperationAdd, HfApi, hf_hub_download
+
+    candidate = Path(candidate)
+    manifest = json.loads((candidate / "manifest.json").read_text())
+    if manifest.get("parent_dataset_revision") != parent_revision:
+        raise ValueError("Candidate does not identify the pinned dataset parent")
+    sync = json.loads((candidate / "sync.json").read_text())
+    if (
+        sync.get("manifest_sha256") != checksum(candidate / "manifest.json")
+        or sync.get("data_release") != manifest["run_id"]
+    ):
+        raise ValueError("Candidate sync metadata does not identify its manifest")
+    expected = dict(manifest["files"])
+    for name in ("manifest.json", "sync.json"):
+        expected[name] = {
+            "bytes": (candidate / name).stat().st_size,
+            "sha256": checksum(candidate / name),
+        }
+    for name, metadata in expected.items():
+        verify_file(candidate / safe_relative(name), metadata)
+    api, download = api or HfApi(), download or hf_hub_download
+    if api.repo_info(repo_id=repo_id, repo_type="dataset").sha != parent_revision:
+        raise ValueError("Dataset main changed since the candidate was prepared")
+    existing = set(
+        api.list_repo_files(repo_id, repo_type="dataset", revision=parent_revision)
+    ) - {".gitattributes"}
+    if not existing <= expected.keys():
+        raise ValueError("Candidate omits files from the current dataset")
+    checkpoint = candidate.parent / f"{manifest['run_id']}-publication.json"
+    checkpoint.write_text(
+        canonical(
+            {
+                "status": "uploading",
+                "repo_id": repo_id,
+                "parent_revision": parent_revision,
+                "release_id": manifest["run_id"],
+            }
+        )
+    )
+    result = api.create_commit(
+        repo_id=repo_id,
+        repo_type="dataset",
+        parent_commit=parent_revision,
+        commit_message=commit_message,
+        operations=[
+            CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(candidate / name))
+            for name in sorted(expected)
+        ],
+        num_threads=8,
+    )
+    revision = result.oid
+    checkpoint.write_text(
+        canonical(
+            {
+                "status": "verifying",
+                "repo_id": repo_id,
+                "parent_revision": parent_revision,
+                "revision": revision,
+                "release_id": manifest["run_id"],
+            }
+        )
+    )
+    actual = set(
+        api.list_repo_files(repo_id, repo_type="dataset", revision=revision)
+    ) - {".gitattributes"}
+    if actual != expected.keys():
+        raise ValueError("Published supplement file set differs from the candidate")
+    checked = set()
+    for info in api.get_paths_info(
+        repo_id=repo_id, paths=list(expected), repo_type="dataset", revision=revision
+    ):
+        checked.add(info.path)
+        sha = (
+            info.lfs.sha256
+            if info.lfs
+            else checksum(
+                Path(
+                    download(
+                        repo_id=repo_id,
+                        filename=info.path,
+                        repo_type="dataset",
+                        revision=revision,
+                    )
+                )
+            )
+        )
+        if (
+            info.size != expected[info.path]["bytes"]
+            or sha != expected[info.path]["sha256"]
+        ):
+            raise ValueError(f"Remote supplement checksum mismatch: {info.path}")
+    if (
+        checked != expected.keys()
+        or api.repo_info(repo_id=repo_id, repo_type="dataset").sha != revision
+    ):
+        raise ValueError("Dataset changed during remote supplement verification")
+    report = {
+        "repo_id": repo_id,
+        "revision": revision,
+        "parent_revision": parent_revision,
+        "release_id": manifest["run_id"],
+        "verified_files": len(checked),
+        "status": "complete",
+    }
+    checkpoint.write_text(canonical(report))
+    return report

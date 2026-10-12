@@ -1,6 +1,7 @@
 """PydanticAI owns tools, retries and message history; validators own acceptance."""
 
 import copy
+import asyncio
 import json
 import unittest
 from pathlib import Path
@@ -17,6 +18,9 @@ from pydantic_ai.messages import (
 )
 from pydantic_ai.models.function import FunctionModel
 from pydantic_ai.usage import RequestUsage
+from pydantic_ai.providers.openai import OpenAIProvider
+from openai import AsyncOpenAI
+import httpx2
 
 import test_unified
 from uwcourses.agents import (
@@ -24,11 +28,153 @@ from uwcourses.agents import (
     generate_repair,
     generate_generic,
     evidence_view,
+    PinnedModel,
+    capture_tool_definitions,
+    recorded_tool_provenance,
 )
 from uwcourses.unified import validate_section
 
 
 class AgentTests(unittest.TestCase):
+    def pinned_model(self, answers):
+        wire_requests = []
+        replies = iter(answers)
+
+        def handle(request):
+            body = json.loads(request.content)
+            wire_requests.append(body)
+            answer = next(replies)
+            if isinstance(answer, tuple):
+                status, error = answer
+                return httpx2.Response(
+                    status,
+                    json={"error": {"message": error, "type": "invalid_request_error"}},
+                )
+            message = {"role": "assistant", "content": json.dumps(answer)}
+            finish_reason = "stop"
+            if body.get("tools"):
+                message = {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": f"call-{len(wire_requests)}",
+                            "type": "function",
+                            "function": {
+                                "name": "submit_sections",
+                                "arguments": json.dumps(answer),
+                            },
+                        }
+                    ],
+                }
+                finish_reason = "tool_calls"
+            return httpx2.Response(
+                200,
+                json={
+                    "id": "mock-completion",
+                    "object": "chat.completion",
+                    "created": 0,
+                    "model": body["model"],
+                    "choices": [
+                        {"index": 0, "message": message, "finish_reason": finish_reason}
+                    ],
+                    "usage": {
+                        "prompt_tokens": 10,
+                        "completion_tokens": 5,
+                        "total_tokens": 15,
+                    },
+                },
+            )
+
+        client = AsyncOpenAI(
+            api_key="test",
+            max_retries=0,
+            http_client=httpx2.AsyncClient(transport=httpx2.MockTransport(handle)),
+        )
+        self.addCleanup(lambda: asyncio.run(client.close()))
+        model = PinnedModel(
+            "test-pinned", provider=OpenAIProvider(openai_client=client)
+        )
+        return model, wire_requests
+
+    def test_runtime_tools_match_actual_openai_function_and_output_definitions(self):
+        f = self.fixture
+        model, wire = self.pinned_model(
+            [
+                {
+                    "search_profile": f.search,
+                    "requirements": f.requirements,
+                    "student_experience": f.experience,
+                }
+            ]
+        )
+        output, _ = generate_unified(f.profile, self.task, f.root, f.context, model)
+        self.assertEqual(output["provenance"]["tools"], wire[0]["tools"])
+        self.assertEqual(
+            {tool["function"]["name"] for tool in wire[0]["tools"]},
+            {"get_course", "submit_sections"},
+        )
+        self.assertEqual(
+            output["provenance"]["tool_requests"][0]["tools"], wire[0]["tools"]
+        )
+        json.dumps(output["provenance"])
+
+    def test_recovery_preserves_actual_tools_for_both_conversations(self):
+        f = self.fixture
+        model, wire = self.pinned_model(
+            [
+                (400, "maximum context length exceeded"),
+                {
+                    "requirements": f.requirements,
+                    "search_profile": None,
+                    "student_experience": None,
+                },
+            ]
+        )
+        output, _ = generate_repair(f.profile, self.task, self.seed, f.context, model)
+        self.assertEqual(len(wire), 2)
+        self.assertEqual(
+            output["provenance"]["recovery_events"][0]["tools"], wire[0]["tools"]
+        )
+        self.assertEqual(output["provenance"]["tools"], wire[1]["tools"])
+        self.assertEqual(len(output["provenance"]["tool_requests"]), 1)
+
+    def test_native_json_output_records_observed_empty_tools_without_inventing_function(
+        self,
+    ):
+        model, wire = self.pinned_model([{"answer": "yes"}])
+        task = {
+            "name": "plain",
+            "version": 1,
+            "prompt": "Return an answer.",
+            "schema": {
+                "type": "object",
+                "properties": {"answer": {"type": "string"}},
+                "required": ["answer"],
+                "additionalProperties": False,
+            },
+        }
+        output, _ = generate_generic({"max_output_tokens": 256}, task, {}, model)
+        self.assertNotIn("tools", wire[0])
+        self.assertEqual(output["provenance"]["tools"], [])
+        self.assertEqual(
+            output["provenance"]["tool_requests"][0]["output_mode"], "native"
+        )
+
+    def test_nested_tool_capture_is_isolated_and_varying_schemas_are_not_combined(self):
+        with capture_tool_definitions() as outer:
+            outer.append(
+                {"tools": [{"type": "function", "function": {"name": "outer"}}]}
+            )
+            with capture_tool_definitions() as inner:
+                inner.append({"tools": []})
+            self.assertEqual(len(outer), 1)
+        self.assertEqual(recorded_tool_provenance(inner)["tools"], [])
+        outer.append({"tools": []})
+        recorded = recorded_tool_provenance(outer)
+        self.assertIsNone(recorded["tools"])
+        self.assertEqual(len(recorded["tool_requests"]), 2)
+        self.assertEqual(recorded_tool_provenance([]), {})
+
     def test_model_prompt_labels_outcome_indexes_without_changing_source(self):
         f = self.fixture
         f.outcome_evidence()
@@ -83,6 +229,7 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(f.root, original)
         self.assertEqual(f.context.fingerprint(f.root["course_id"]), fingerprint)
         self.assertNotIn("outcome_index", f.root["official_learning_outcomes"][0])
+        self.assertNotIn("tools", result["provenance"])
 
     def setUp(self):
         f = self.fixture = test_unified.UnifiedTests()
@@ -138,6 +285,7 @@ class AgentTests(unittest.TestCase):
         )
         self.assertEqual(usage["requests"], 0)
         self.assertEqual(output["provenance"]["conversation"], [])
+        self.assertNotIn("tools", output["provenance"])
 
     def test_native_repair_uses_model_retry_and_locks_accepted_sections(self):
         f = self.fixture
@@ -796,6 +944,16 @@ class AgentTests(unittest.TestCase):
         self.assertGreaterEqual(
             usage["total_tokens"], sum(c["usage"]["total_tokens"] for c in checks)
         )
+        pinned, wire = self.pinned_model(answers)
+        recorded, _ = generate_generic(
+            {"max_output_tokens": 1024}, task, payload, pinned
+        )
+        self.assertEqual(len(wire), 4)
+        self.assertEqual(recorded["provenance"]["tools"], [])
+        self.assertEqual(len(recorded["provenance"]["tool_requests"]), 2)
+        for check in recorded["provenance"]["grounding_checks"]:
+            self.assertEqual(check["output"]["provenance"]["tools"], [])
+            self.assertEqual(len(check["output"]["provenance"]["tool_requests"]), 1)
         from pydantic_ai.exceptions import UnexpectedModelBehavior
 
         repeated = []

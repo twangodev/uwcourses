@@ -19,6 +19,7 @@ import pyarrow.parquet as pq
 
 from .models import canonical, digest
 from .release import checksum
+from .publication import safe_relative, verify_file
 from .course import Course
 from .course_context import text_view
 
@@ -47,18 +48,6 @@ SUPPLEMENT_SCHEMA = pa.schema(
         ("source_sha256", pa.string()),
     ]
 )
-
-
-def safe_relative(name):
-    path = Path(name)
-    if path.is_absolute() or ".." in path.parts:
-        raise ValueError("Publication manifest contains an unsafe path")
-    return path
-
-
-def verify_file(path, expected):
-    if path.stat().st_size != expected["bytes"] or checksum(path) != expected["sha256"]:
-        raise ValueError(f"Source publication checksum mismatch: {path.name}")
 
 
 def read_evidence(path):
@@ -404,8 +393,6 @@ def refresh_outcomes(
 
 def publish_outcomes(candidate, repo_id, parent_revision, api=None, download=None):
     """Publish a reviewed supplement atomically with a pinned parent guard."""
-    from huggingface_hub import CommitOperationAdd, HfApi, hf_hub_download
-
     candidate = Path(candidate)
     manifest = json.loads((candidate / "manifest.json").read_text())
     if manifest.get("parent_dataset_revision") != parent_revision or not manifest.get(
@@ -414,97 +401,13 @@ def publish_outcomes(candidate, repo_id, parent_revision, api=None, download=Non
         raise ValueError(
             "Candidate is not an outcomes supplement for the pinned parent"
         )
-    expected = dict(manifest["files"])
-    for name in ("manifest.json", "sync.json"):
-        expected[name] = {
-            "bytes": (candidate / name).stat().st_size,
-            "sha256": checksum(candidate / name),
-        }
-    for name, metadata in expected.items():
-        verify_file(candidate / safe_relative(name), metadata)
-    api, download = api or HfApi(), download or hf_hub_download
-    if api.repo_info(repo_id=repo_id, repo_type="dataset").sha != parent_revision:
-        raise ValueError("Dataset main changed since the candidate was prepared")
-    existing = set(
-        api.list_repo_files(repo_id, repo_type="dataset", revision=parent_revision)
-    ) - {".gitattributes"}
-    if not existing <= expected.keys():
-        raise ValueError("Candidate omits files from the current dataset")
-    checkpoint = candidate.parent / f"{manifest['run_id']}-publication.json"
-    checkpoint.write_text(
-        canonical(
-            {
-                "status": "uploading",
-                "repo_id": repo_id,
-                "parent_revision": parent_revision,
-                "release_id": manifest["run_id"],
-            }
-        )
-    )
-    result = api.create_commit(
-        repo_id=repo_id,
-        repo_type="dataset",
-        parent_commit=parent_revision,
+    from .publication import publish_candidate
+
+    return publish_candidate(
+        candidate,
+        repo_id,
+        parent_revision,
         commit_message="feat(data): add archived official course outcomes",
-        operations=[
-            CommitOperationAdd(path_in_repo=name, path_or_fileobj=str(candidate / name))
-            for name in sorted(expected)
-        ],
-        num_threads=8,
+        api=api,
+        download=download,
     )
-    revision = result.oid
-    checkpoint.write_text(
-        canonical(
-            {
-                "status": "verifying",
-                "repo_id": repo_id,
-                "parent_revision": parent_revision,
-                "revision": revision,
-                "release_id": manifest["run_id"],
-            }
-        )
-    )
-    actual = set(
-        api.list_repo_files(repo_id, repo_type="dataset", revision=revision)
-    ) - {".gitattributes"}
-    if actual != expected.keys():
-        raise ValueError("Published outcomes file set differs from the candidate")
-    checked = set()
-    for info in api.get_paths_info(
-        repo_id=repo_id, paths=list(expected), repo_type="dataset", revision=revision
-    ):
-        checked.add(info.path)
-        sha = (
-            info.lfs.sha256
-            if info.lfs
-            else checksum(
-                Path(
-                    download(
-                        repo_id=repo_id,
-                        filename=info.path,
-                        repo_type="dataset",
-                        revision=revision,
-                    )
-                )
-            )
-        )
-        if (
-            info.size != expected[info.path]["bytes"]
-            or sha != expected[info.path]["sha256"]
-        ):
-            raise ValueError(f"Remote outcomes checksum mismatch: {info.path}")
-    if (
-        checked != expected.keys()
-        or api.repo_info(repo_id=repo_id, repo_type="dataset").sha != revision
-    ):
-        raise ValueError("Dataset changed during remote outcomes verification")
-    report = {
-        "repo_id": repo_id,
-        "revision": revision,
-        "parent_revision": parent_revision,
-        "release_id": manifest["run_id"],
-        "verified_files": len(checked),
-        "status": "complete",
-    }
-    checkpoint.write_text(canonical(report))
-    return report

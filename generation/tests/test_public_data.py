@@ -685,6 +685,30 @@ class PublicDataTests(unittest.TestCase):
         self.assertEqual(json.loads(rows[1]["output_json"]), value)
         self.assertEqual(rows[1]["model_revision"], "a" * 40)
         self.assertEqual(json.loads(rows[1]["usage_json"])["completion_tokens"], 123)
+        self.assertEqual(rows[0]["conversation_status"], "missing")
+        self.assertEqual(rows[1]["conversation_count"], 2)
+        self.assertEqual(counts["llm_conversations"], 2)
+        self.assertTrue(rows[1]["has_any_conversation"])
+        self.assertEqual(rows[1]["messages"][0]["thinking"], "Recorded Qwen reasoning")
+        from datasets import load_dataset
+
+        conversations = load_dataset(
+            "parquet",
+            data_files=str(output / "public/llm_conversations.parquet"),
+            split="train",
+            cache_dir=str(self.root / "hf-cache"),
+        )
+        primary = next(
+            row
+            for row in conversations
+            if row["source_path"] == "/provenance/conversation"
+        )
+        self.assertEqual(
+            primary["messages"][0]["tool_calls"][0]["function"]["arguments"],
+            {"course_id": "COMPSCI 200"},
+        )
+        self.assertEqual(primary["trace_id"], rows[1]["trace_id"])
+        self.assertEqual(primary["tools_status"], "not_recorded")
         self.assertNotIn(
             "Recorded Qwen reasoning",
             json.dumps(
