@@ -4,6 +4,8 @@ from tempfile import TemporaryDirectory
 import unittest
 from unittest.mock import patch
 
+import requests
+
 from uwcourses_site.production_probe import production_probe
 
 
@@ -42,7 +44,10 @@ class ProductionProbeTests(unittest.TestCase):
                 self.assertEqual(args, ("delete", "--force"))
                 return "Deleted"
 
-            with patch("uwcourses_site.production_probe.wrangler", side_effect=command):
+            with (
+                patch("uwcourses_site.production_probe.wrangler", side_effect=command),
+                patch("uwcourses_site.production_probe.probe_json", return_value={}),
+            ):
 
                 def check():
                     with production_probe(config, "https://uwcourses.com") as (
@@ -76,3 +81,31 @@ class ProductionProbeTests(unittest.TestCase):
 
     def test_cleanup_runs_after_an_ambiguous_probe_deployment_error(self):
         self.exercise("deploy")
+
+    @patch("uwcourses_site.production_probe.time.sleep")
+    def test_waits_for_workers_dev_route_propagation_before_yielding(self, sleep):
+        with TemporaryDirectory() as directory:
+            config = Path(directory) / "wrangler.json"
+            config.write_text(
+                json.dumps({"name": "uwcourses", "compatibility_date": "2026-09-08"})
+            )
+            with (
+                patch(
+                    "uwcourses_site.production_probe.wrangler",
+                    side_effect=[
+                        "Deployed https://probe.example.workers.dev",
+                        "Deleted",
+                    ],
+                ) as command,
+                patch(
+                    "uwcourses_site.production_probe.probe_json",
+                    side_effect=[
+                        requests.HTTPError("1042 no script"),
+                        {},
+                    ],
+                ) as read,
+            ):
+                with production_probe(config, "https://uwcourses.com"):
+                    self.assertEqual(read.call_count, 2)
+                self.assertEqual(command.call_count, 2)
+                sleep.assert_called_once_with(5)

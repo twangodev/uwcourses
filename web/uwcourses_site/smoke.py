@@ -15,9 +15,14 @@ PROBE_HEADERS = {
 }
 
 
-def probe_json(url: str, headers: dict[str, str] | None = None):
+def probe_json(
+    url: str,
+    headers: dict[str, str] | None = None,
+    *,
+    timeout: float = 15,
+):
     response = requests.get(
-        url, headers={**PROBE_HEADERS, **(headers or {})}, timeout=15
+        url, headers={**PROBE_HEADERS, **(headers or {})}, timeout=timeout
     )
     try:
         response.raise_for_status()

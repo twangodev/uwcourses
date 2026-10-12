@@ -4,10 +4,14 @@ from contextlib import contextmanager
 import json
 from pathlib import Path
 import re
+import time
 from tempfile import TemporaryDirectory
 from uuid import uuid4
 
+import requests
+
 from .deployment import wrangler
+from .smoke import probe_json
 
 
 WORKER = """
@@ -60,7 +64,19 @@ def production_probe(config: Path, origin: str):
             urls = re.findall(r"https://[a-zA-Z0-9.-]+\.workers\.dev", output)
             if len(urls) != 1:
                 raise ValueError("Temporary production probe URL unavailable")
+            headers = {"X-Search-Probe": token}
+            for attempt in range(18):
+                try:
+                    probe_json(f"{urls[0]}/api/status", headers, timeout=5)
+                    break
+                except (requests.RequestException, ValueError):
+                    if attempt == 17:
+                        raise
+                    print(
+                        "Waiting for the temporary probe route to propagate", flush=True
+                    )
+                    time.sleep(5)
             print("Created authenticated production search probe", flush=True)
-            yield urls[0], {"X-Search-Probe": token}
+            yield urls[0], headers
         finally:
             wrangler(probe_config, "delete", "--force")
