@@ -22,6 +22,56 @@ def response(*parts):
 
 
 class TraceFormatTests(unittest.TestCase):
+    def test_varying_tool_schemas_remain_distinct_from_unrecorded_tools(self):
+        provenance = {
+            "conversation": self.conversation(),
+            "tools": None,
+            "tool_requests": [{"tools": []}, {"tools": [{"name": "get_course"}]}],
+        }
+        row = self.row(
+            {"provenance": {**provenance, "subtasks": [{"provenance": provenance}]}}
+        )
+        parent, branches = normalize_trace(row)
+        self.assertEqual(parent["output_json"], row["output_json"])
+        self.assertEqual(len(branches), 2)
+        for projected in [parent, *branches]:
+            self.assertEqual(projected["tools_status"], "varying")
+            self.assertIsNone(projected["tools"])
+            self.assertEqual(projected["conversation_status"], "converted")
+        self.assertEqual(
+            normalize_conversation(self.conversation(), tools=[])["tools_status"],
+            "recorded",
+        )
+
+    def test_malformed_legacy_tool_calls_preserve_raw_data_and_allow_conversion(self):
+        valid = {"id": "valid", "function": {"name": "f", "arguments": "{}"}}
+        for calls in (
+            "invalid",
+            {},
+            ["invalid", valid],
+            [{"function": None}, valid],
+            [{}, valid],
+        ):
+            with self.subTest(calls=calls):
+                raw = [{"role": "assistant", "content": "", "tool_calls": calls}]
+                row = self.row({"provenance": {"conversation": raw}})
+                parent, branches = normalize_trace(row)
+                self.assertEqual(parent["output_json"], row["output_json"])
+                self.assertEqual(len(branches), 1)
+                for projected in [parent, *branches]:
+                    self.assertEqual(projected["conversation_status"], "partial")
+                    self.assertEqual(
+                        projected["conversation_issues"][0]["code"],
+                        "unsupported_tool_call",
+                    )
+                    message = projected["messages"][0]
+                    self.assertEqual(message["source_parts"], raw)
+                    if isinstance(calls, list):
+                        self.assertEqual(len(message["tool_calls"]), 1)
+                        self.assertEqual(
+                            message["tool_calls"][0]["function"]["arguments"], {}
+                        )
+
     def test_orphan_feedback_retains_recorded_role_and_id_and_is_partial(self):
         feedback = {
             "part_kind": "retry-prompt",

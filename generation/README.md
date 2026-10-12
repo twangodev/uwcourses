@@ -476,6 +476,9 @@ Tools are included only when their declarations were recorded; historical
 declarations and missing system prompts are never reconstructed. Not every
 recorded tool call has a response, so these archives require selection and
 validation before use as training examples.
+`tools_status` distinguishes recorded declarations from unavailable ones. When
+schemas change between requests, it is `varying`; individual declarations remain
+in the original payload's `tool_requests` rather than a single `tools` list.
 
 Read these configs with `datasets>=4.7`: their Parquet feature metadata uses HF
 `Json` features so heterogeneous tool arguments decode to native dictionaries.

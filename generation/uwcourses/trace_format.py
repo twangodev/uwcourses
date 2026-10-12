@@ -74,7 +74,9 @@ def _issue(issues, code, path):
     issues.append({"code": code, "source_path": path})
 
 
-def normalize_conversation(conversation, *, source_path="", tools=None):
+def normalize_conversation(
+    conversation, *, source_path="", tools=None, tool_requests=None
+):
     """Project recorded messages only. Raw typed parts remain available per message."""
     result = {
         "messages": [],
@@ -82,7 +84,11 @@ def normalize_conversation(conversation, *, source_path="", tools=None):
         "conversation_format": FORMAT,
         "conversation_status": "converted",
         "conversation_issues": [],
-        "tools_status": "recorded" if tools is not None else "not_recorded",
+        "tools_status": "recorded"
+        if tools is not None
+        else "varying"
+        if tool_requests
+        else "not_recorded",
     }
     messages, issues = result["messages"], result["conversation_issues"]
     recorded_call_ids = set()
@@ -112,7 +118,18 @@ def normalize_conversation(conversation, *, source_path="", tools=None):
                 "source_message_index": index,
                 "feedback": False,
             }
-            for call in native.get("tool_calls") or []:
+            calls = native.get("tool_calls")
+            if calls is None:
+                calls = []
+            if not isinstance(calls, list):
+                _issue(issues, "unsupported_tool_call", path)
+                calls = []
+            for call in calls:
+                if not isinstance(call, dict) or not isinstance(
+                    call.get("function"), dict
+                ):
+                    _issue(issues, "unsupported_tool_call", path)
+                    continue
                 if isinstance(call.get("id"), str):
                     recorded_call_ids.add(call["id"])
                 converted = copy.deepcopy(call)
@@ -266,7 +283,12 @@ def recorded_conversations(value, path=""):
             child_path = path + "/" + _pointer(key)
             if key == "conversation" or key.endswith("_conversation"):
                 if isinstance(child, list) and child:
-                    yield child_path, child, value.get("tools")
+                    yield (
+                        child_path,
+                        child,
+                        value.get("tools"),
+                        value.get("tool_requests"),
+                    )
             else:
                 yield from recorded_conversations(child, child_path)
     elif isinstance(value, list):
@@ -280,7 +302,7 @@ def normalize_trace(row):
     output = json.loads(row["output_json"])
     identity = trace_id(row)
     branches = []
-    for path, conversation, tools in recorded_conversations(output):
+    for path, conversation, tools, requests in recorded_conversations(output):
         branches.append(
             {
                 "conversation_id": digest({"trace_id": identity, "source_path": path}),
@@ -292,7 +314,9 @@ def normalize_trace(row):
                 "source_path": path,
                 "source_hash": digest(conversation),
                 "parent_source_path": path.rsplit("/", 1)[0],
-                **normalize_conversation(conversation, source_path=path, tools=tools),
+                **normalize_conversation(
+                    conversation, source_path=path, tools=tools, tool_requests=requests
+                ),
             }
         )
     provenance = output.get("provenance", {})
@@ -300,6 +324,7 @@ def normalize_trace(row):
         provenance.get("conversation", []),
         source_path="/provenance/conversation",
         tools=provenance.get("tools"),
+        tool_requests=provenance.get("tool_requests"),
     )
     if "conversation" not in provenance:
         primary["conversation_status"] = "missing"
