@@ -1,0 +1,44 @@
+name: Search health
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - web/uwcourses_site/smoke.py
+      - web/uwcourses_site/production_probe.py
+      - .github/workflows/search-health.yml
+permissions:
+  contents: read
+jobs:
+  live-search:
+    if: github.event_name == 'workflow_dispatch' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.0
+      - run: bun install --frozen-lockfile
+      - name: Check the published release from a GitHub runner
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: |
+          uv run --locked python - <<'PY'
+          from pathlib import Path
+          import requests
+          from uwcourses_site.deployment import Release
+          from uwcourses_site.production_probe import production_probe
+          from uwcourses_site.smoke import probe_json, smoke_check
+
+          with production_probe(Path("wrangler.json"), "https://uwcourses.com") as (base, headers):
+              response = requests.get(f"{base}/api/status", timeout=15)
+              assert response.status_code == 404, "Probe must reject unauthenticated requests"
+              status = probe_json(f"{base}/api/status", headers)
+              release = Release(status["revision"], status["projection_id"], status["courses"])
+              smoke_check(base, release, status["site_commit"], headers=headers)
+          PY

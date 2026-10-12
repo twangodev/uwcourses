@@ -64,19 +64,39 @@ def main():
     else:
         parser = argparse.ArgumentParser(description=__doc__)
         parser.add_argument(
-            "command", choices=["assets-check", "release-check", "deploy"]
+            "command",
+            choices=["assets-check", "release-check", "deploy", "smoke-check"],
         )
         parser.add_argument("--root", type=Path, default=Path(".svelte-kit/cloudflare"))
         parser.add_argument("--site", type=Path, default=Path(".site/import"))
         parser.add_argument("--config", type=Path, default=Path("wrangler.json"))
         parser.add_argument("--first-deployment", action="store_true")
+        parser.add_argument("--base-url", default="https://uwcourses.com")
+        parser.add_argument("--commit")
+        parser.add_argument("--service-probe", action="store_true")
         args = parser.parse_args()
         if args.command == "assets-check":
             check_assets(args.root)
         else:
             from .deployment import Release, deploy
 
-            if args.command == "release-check":
+            if args.command == "smoke-check":
+                if not args.commit:
+                    parser.error("smoke-check requires --commit")
+                from .smoke import smoke_check
+
+                release = Release.read(args.site / "status.json")
+                if args.service_probe:
+                    from .production_probe import production_probe
+
+                    with production_probe(args.config, args.base_url) as (
+                        base,
+                        headers,
+                    ):
+                        smoke_check(base, release, args.commit, headers=headers)
+                else:
+                    smoke_check(args.base_url, release, args.commit)
+            elif args.command == "release-check":
                 release = Release.read(args.site / "status.json")
                 print(f"Verified complete release {release.revision}")
             else:

@@ -64,6 +64,7 @@ class DeploymentTests(unittest.TestCase):
         previous=None,
         failed_part=1,
         recovery_error=False,
+        completion=None,
     ):
         with TemporaryDirectory() as directory:
             root = Path(directory)
@@ -99,16 +100,18 @@ class DeploymentTests(unittest.TestCase):
             def command(config, *args, **kwargs):
                 calls.append(args)
                 if (
-                    failure in {"import", "cancel"}
+                    failure in {"import", "cancel", "poll"}
                     and "--file" in args
                     and args[-1].endswith(f"000{failed_part}.sql")
                 ):
                     raise subprocess.CalledProcessError(
                         1,
                         ["wrangler"],
-                        stderr="Cancelled due to no poll() received in 15000ms."
-                        if failure == "cancel"
-                        else "Invalid SQL",
+                        stderr={
+                            "cancel": "Cancelled due to no poll() received in 15000ms.",
+                            "poll": "Not currently importing anything.",
+                            "import": "Invalid SQL",
+                        }[failure],
                     )
                 return self.report(courses=0) if failure == "verify" else self.report()
 
@@ -145,7 +148,10 @@ class DeploymentTests(unittest.TestCase):
                     if failure == "verify"
                     else self.report(),
                 ),
-                patch("uwcourses_site.deployment.database_matches", return_value=reuse),
+                patch(
+                    "uwcourses_site.deployment.database_matches",
+                    side_effect=[reuse, completion],
+                ) as matches,
                 patch("uwcourses_site.deployment.subprocess.run") as run,
             ):
                 run.return_value.stdout = "c" * 40
@@ -154,7 +160,18 @@ class DeploymentTests(unittest.TestCase):
                     self.assertEqual(calls, [])
                     state.assert_not_called()
                     self.assertFalse(github_output.exists())
-                elif failure or changed or (missing and not first):
+                elif (
+                    (
+                        failure
+                        and not (
+                            failure == "poll"
+                            and failed_part == 2
+                            and completion is True
+                        )
+                    )
+                    or changed
+                    or (missing and not first)
+                ):
                     with self.assertRaises(
                         (ValueError, RuntimeError, subprocess.CalledProcessError)
                     ) as caught:
@@ -180,6 +197,14 @@ class DeploymentTests(unittest.TestCase):
                         self.assertIn("VALUES('ready','false')", calls[0][-1])
                         self.assertLess(calls.index(calls[0]), calls.index(imports[0]))
                         self.assertTrue(imports[0][-1].endswith("0001.sql"))
+                self.assertEqual(
+                    matches.call_count,
+                    0
+                    if stale or (missing and not first)
+                    else 2
+                    if failure == "poll" and failed_part == 2
+                    else 1,
+                )
                 if (
                     failure == "cancel"
                     and failed_part == 1
@@ -246,6 +271,14 @@ class DeploymentTests(unittest.TestCase):
     def test_import_failure_stops_publish(self):
         self.run_deploy(failure="import")
 
+    def test_final_poll_failure_publishes_only_a_verified_completed_release(self):
+        self.run_deploy(failure="poll", failed_part=2, completion=True)
+        self.run_deploy(failure="poll", failed_part=2, completion=False)
+        self.run_deploy(
+            failure="poll", failed_part=2, completion=RuntimeError("D1 unavailable")
+        )
+        self.run_deploy(failure="poll", failed_part=1, completion=True)
+
     @patch("uwcourses_site.deployment.time.sleep")
     @patch("uwcourses_site.deployment.wrangler")
     def test_cancelled_file_is_retried_without_restarting_prior_files(
@@ -266,7 +299,12 @@ class DeploymentTests(unittest.TestCase):
     @patch("uwcourses_site.deployment.time.sleep")
     @patch("uwcourses_site.deployment.wrangler")
     def test_unconfirmed_failures_are_not_replayed(self, command, sleep):
-        for message in ("Invalid SQL", "HTTP 403", "Network timeout"):
+        for message in (
+            "Invalid SQL",
+            "HTTP 403",
+            "Network timeout",
+            "Not currently importing anything.",
+        ):
             with self.subTest(message=message):
                 command.reset_mock()
                 command.side_effect = subprocess.CalledProcessError(

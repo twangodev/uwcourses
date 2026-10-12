@@ -289,6 +289,27 @@ def deploy(config: Path, site: Path, first: bool = False) -> None:
             try:
                 import_part(config, part)
             except subprocess.CalledProcessError as failure:
+                output = (failure.stdout or "") + (failure.stderr or "")
+                if (
+                    index == len(parts) - 1
+                    and "Not currently importing anything." in output
+                ):
+                    # A lost final poll can report failure after D1 committed.
+                    # Only the last SQL statement sets ready=true. Verify that
+                    # marker and the pinned release; never replay uncertain writes.
+                    try:
+                        if database_matches(config, release):
+                            print(
+                                "Final import poll failed, but D1 verified the "
+                                "completed release; continuing publication",
+                                flush=True,
+                            )
+                            break
+                    except Exception as verification:
+                        print(
+                            f"Import completion verification failed: {verification}",
+                            file=sys.stderr,
+                        )
                 if index == 0 and previous and cancelled_import(failure):
                     try:
                         if worker_state(account, token, worker) != state:
