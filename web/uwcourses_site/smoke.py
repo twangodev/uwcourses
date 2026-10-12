@@ -8,8 +8,40 @@ import requests
 
 from .deployment import Release
 
+PROBE_HEADERS = {
+    "Cache-Control": "no-cache",
+    "Accept": "application/json",
+    "User-Agent": "uwcourses-deploy/1",
+}
 
-def smoke_check(base_url: str, release: Release, commit: str) -> None:
+
+def probe_json(
+    url: str,
+    headers: dict[str, str] | None = None,
+    *,
+    timeout: float = 15,
+):
+    response = requests.get(
+        url, headers={**PROBE_HEADERS, **(headers or {})}, timeout=timeout
+    )
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as failure:
+        raise requests.HTTPError(
+            f"{failure}; cf-ray={response.headers.get('CF-Ray', 'none')}; "
+            f"response={response.text[:300]!r}",
+            response=response,
+        ) from failure
+    return response.json()
+
+
+def smoke_check(
+    base_url: str,
+    release: Release,
+    commit: str,
+    *,
+    headers: dict[str, str] | None = None,
+) -> None:
     probe = uuid4().hex
     paths = [
         ("/api/status", {}),
@@ -30,16 +62,7 @@ def smoke_check(base_url: str, release: Release, commit: str) -> None:
                         "_probe": f"{probe}-{attempt}",
                     }
                 )
-                response = requests.get(
-                    f"{base_url.rstrip('/')}{path}?{query}",
-                    headers={
-                        "Cache-Control": "no-cache",
-                        "User-Agent": "uwcourses-deploy/1",
-                    },
-                    timeout=15,
-                )
-                response.raise_for_status()
-                data = response.json()
+                data = probe_json(f"{base_url.rstrip('/')}{path}?{query}", headers)
                 if data.get("revision") != release.revision:
                     raise ValueError(f"{path}: unexpected dataset revision")
                 if path == "/api/status":

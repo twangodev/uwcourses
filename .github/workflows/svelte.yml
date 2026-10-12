@@ -505,7 +505,10 @@ jobs:
       - name: Verify live search
         if: steps.deploy.outputs.deployed == 'true'
         timeout-minutes: 5
-        run: uv run --locked uwcourses-site smoke-check --commit "$GITHUB_SHA"
+        env:
+          CLOUDFLARE_ACCOUNT_ID: ${{ vars.CLOUDFLARE_ACCOUNT_ID }}
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+        run: uv run --locked uwcourses-site smoke-check --service-probe --commit "$GITHUB_SHA"
       - name: Sync Cloudflare endpoint inventory
         if: steps.deploy.outputs.deployed == 'true'
         timeout-minutes: 5
