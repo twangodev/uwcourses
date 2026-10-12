@@ -10,6 +10,8 @@ from uuid import uuid4
 
 import requests
 
+from .smoke import PROBE_HEADERS
+
 ROOT = Path(__file__).resolve().parents[2]
 STAGES = {
     "import": ROOT / ".site/import",
@@ -99,7 +101,7 @@ def resolve(revision=None):
         try:
             response = requests.get(
                 "https://uwcourses.com/api/status",
-                headers={"Cache-Control": "no-cache"},
+                headers=PROBE_HEADERS,
                 timeout=30,
             )
             response.raise_for_status()
@@ -114,7 +116,7 @@ def resolve(revision=None):
                 response = requests.get(
                     "https://uwcourses.com/api/suggest",
                     params={"q": "math", "revision": revision, "_probe": uuid4().hex},
-                    headers={"Cache-Control": "no-cache"},
+                    headers=PROBE_HEADERS,
                     timeout=30,
                 )
                 response.raise_for_status()

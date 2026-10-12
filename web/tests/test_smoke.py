@@ -5,7 +5,7 @@ from urllib.parse import parse_qs, urlparse
 import requests
 
 from uwcourses_site.deployment import Release
-from uwcourses_site.smoke import smoke_check
+from uwcourses_site.smoke import probe_json, smoke_check
 
 
 class SmokeTests(unittest.TestCase):
@@ -24,6 +24,17 @@ class SmokeTests(unittest.TestCase):
         response = Mock()
         response.json.return_value = data
         return response
+
+    @patch("uwcourses_site.smoke.requests.get")
+    def test_cloudflare_rejections_include_diagnostic_body_and_ray(self, get):
+        response = requests.Response()
+        response.status_code = 403
+        response.url = "https://example.test/api/status"
+        response._content = b"error code: 1010\n"
+        response.headers["CF-Ray"] = "example-ray"
+        get.return_value = response
+        with self.assertRaisesRegex(requests.HTTPError, "example-ray.*1010"):
+            probe_json(response.url)
 
     @patch("uwcourses_site.smoke.requests.get")
     def test_checks_release_and_all_search_surfaces(self, get):

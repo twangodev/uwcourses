@@ -1,0 +1,30 @@
+name: Search health
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      - web/uwcourses_site/smoke.py
+      - .github/workflows/search-health.yml
+permissions:
+  contents: read
+jobs:
+  live-search:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
+        with:
+          python-version: "3.12"
+          enable-cache: true
+      - name: Check the published release from a GitHub runner
+        run: |
+          uv run --locked python - <<'PY'
+          from uwcourses_site.deployment import Release
+          from uwcourses_site.smoke import probe_json, smoke_check
+
+          base = "https://uwcourses.com"
+          status = probe_json(f"{base}/api/status")
+          release = Release(status["revision"], status["projection_id"], status["courses"])
+          smoke_check(base, release, status["site_commit"])
+          PY
