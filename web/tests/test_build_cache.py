@@ -99,12 +99,51 @@ class BuildCacheTests(unittest.TestCase):
             ({}, True),
             ([], True),
         ]:
-            get.return_value.json.return_value = deployed
+
+            def response(url, **kwargs):
+                get.return_value.json.return_value = (
+                    {"revision": self.revision, "items": [{"course_uid": "course"}]}
+                    if url.endswith("/api/suggest")
+                    else deployed
+                )
+                return get.return_value
+
+            get.side_effect = response
             cache.resolve(self.revision)
             self.assertEqual(outputs.call_args.args[0]["changed"], changed)
         get.side_effect = requests.ConnectionError()
         cache.resolve(self.revision)
         self.assertTrue(outputs.call_args.args[0]["changed"])
+
+    @patch.dict(os.environ, {"GITHUB_EVENT_NAME": "schedule"})
+    @patch.object(cache, "outputs")
+    @patch.object(cache, "keys", return_value={})
+    @patch.object(cache.subprocess, "check_output", return_value="commit\n")
+    @patch.object(cache.requests, "get")
+    def test_identical_metadata_cannot_hide_unavailable_search(
+        self, get, commit, keys, outputs
+    ):
+        for result in (
+            requests.HTTPError("503 updating"),
+            {"revision": self.revision, "items": []},
+            {"revision": "old", "items": [{"course_uid": "course"}]},
+            [],
+        ):
+            with self.subTest(result=result):
+
+                def response(url, **kwargs):
+                    if url.endswith("/api/suggest"):
+                        if isinstance(result, Exception):
+                            raise result
+                        data = result
+                    else:
+                        data = {"revision": self.revision, "site_commit": "commit"}
+                    get.return_value.json.return_value = data
+                    return get.return_value
+
+                get.side_effect = response
+                cache.resolve(self.revision)
+                self.assertTrue(outputs.call_args.args[0]["changed"])
 
     @patch("huggingface_hub.HfApi")
     def test_hf_failure_never_falls_back_to_cached_data(self, api):
