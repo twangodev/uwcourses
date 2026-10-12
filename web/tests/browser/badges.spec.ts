@@ -73,13 +73,17 @@ test('all AI disclaimers share HF publisher attribution', async ({ page }) => {
   await expect(page.locator('.ai-disclaimer:visible')).toHaveCount(3);
   await expect(page.locator('.ai-disclaimer')).toHaveCount(4);
   for (const label of ['About this summary', 'About AI suggestions', 'About student experience']) {
+    const trigger = page.getByRole('button', { name: label, exact: true });
     const tooltip = page.getByRole('tooltip').filter({ hasText: 'nvidia/Qwen3.6-35B-A3B-NVFP4' });
+    await trigger.scrollIntoViewIfNeeded();
+    // Tooltips dismiss on scroll. A pending automatic scroll can close one
+    // after its first visibility check, so retry the complete interaction.
     await expect(async () => {
-      await page.getByRole('button', { name: label, exact: true }).click();
+      await trigger.click();
       await expect(tooltip).toBeVisible({ timeout: 500 });
+      await expect(tooltip).toContainText('1355db6a052410cfd62085d94b58866fd0f2c3c5', { timeout: 500 });
+      await expect(tooltip.getByRole('img', { name: 'NVIDIA' })).toBeVisible({ timeout: 500 });
     }).toPass({ timeout: 5000 });
-    await expect(tooltip).toContainText('1355db6a052410cfd62085d94b58866fd0f2c3c5');
-    await expect(tooltip.getByRole('img', { name: 'NVIDIA' })).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(tooltip).toHaveCount(0);
   }
