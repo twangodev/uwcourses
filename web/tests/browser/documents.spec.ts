@@ -1,4 +1,6 @@
 import { expect, test } from "@playwright/test";
+import { importedCourse } from "./dataset";
+import { courseUrl } from "../../../src/lib/format";
 import { documentSchemas, documentKind } from "../../../src/lib/api/schemas";
 
 test("JSON document families satisfy the published contracts", async ({
@@ -40,7 +42,10 @@ test("JSON document families satisfy the published contracts", async ({
 test("HTML advertises representations; Markdown preserves model and citations", async ({
   request,
 }) => {
-  const path = "/courses/COMPSCI_300";
+  const fixture = importedCourse(
+    "json_extract(payload,'$.llm_model') IS NOT NULL",
+  );
+  const path = courseUrl(fixture.course_id);
   const html = await request.get(path);
   expect(html.headers().link).toContain(path + ".md");
   const body = await html.text();
@@ -50,7 +55,7 @@ test("HTML advertises representations; Markdown preserves model and citations", 
   const markdown = await request.get(path + ".md");
   expect(markdown.headers()["content-type"]).toContain("text/markdown");
   const text = await markdown.text();
-  expect(text).toContain("Programming II");
+  expect(text).toContain(json.data.course.title);
   expect(text).toContain(json.data.course.llm_model);
   expect(text).toContain(json.dataset.revision);
   expect(text).toContain("requirements");
@@ -139,7 +144,10 @@ test("weather remains readable after the Worker cache is populated", async ({
 test("canonical URLs negotiate formats without changing browser or transport responses", async ({
   request,
 }) => {
-  const path = "/courses/COMPSCI_300";
+  const fixture = importedCourse(
+    "json_extract(payload,'$.llm_model') IS NOT NULL",
+  );
+  const path = courseUrl(fixture.course_id);
   for (const [accept, type] of [
     ["text/markdown", "text/markdown"],
     ["application/json", "application/json"],
@@ -151,7 +159,8 @@ test("canonical URLs negotiate formats without changing browser or transport res
     expect(response.status()).toBe(200);
     expect(response.headers()["content-type"]).toContain(type);
     expect(response.headers().vary.toLowerCase()).toContain("accept");
-    expect(await response.text()).toContain("Programming II");
+    const content = await response.text();
+    expect(content).toContain(fixture.course_id);
   }
   const md = await request.get(path, { headers: { Accept: "text/markdown" } });
   expect(await md.text()).toBe(await (await request.get(path + ".md")).text());

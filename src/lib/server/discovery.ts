@@ -51,10 +51,10 @@ export async function coursePreviews(
       platform,
       previewRecordRow,
       projected
-        ? `SELECT c.uid,c.payload,g.term grade_term,g.grade_count latest_count,g.gpa latest_gpa,b.gpa benchmark_gpa,b.size benchmark_size
-        FROM course_previews c LEFT JOIN grade_metrics g ON g.uid=c.uid AND g.term=(SELECT MAX(term) FROM grade_metrics WHERE uid=c.uid AND term<=?)
+        ? `SELECT c.uid,c.payload,catalog.description,g.term grade_term,g.grade_count latest_count,g.gpa latest_gpa,b.gpa benchmark_gpa,b.size benchmark_size
+        FROM course_previews c JOIN courses catalog ON catalog.uid=c.uid LEFT JOIN grade_metrics g ON g.uid=c.uid AND g.term=(SELECT MAX(term) FROM grade_metrics WHERE uid=c.uid AND term<=?)
         LEFT JOIN grade_benchmarks b ON b.term=g.term AND b.subject=? WHERE c.uid IN (${placeholders})`
-        : `SELECT uid,payload FROM courses WHERE uid IN (${placeholders})`,
+        : `SELECT uid,payload,description FROM courses WHERE uid IN (${placeholders})`,
       projected ? [term, scope, ...ids] : ids,
       "previews",
     ),
@@ -92,7 +92,10 @@ export async function coursePreviews(
   const payloads = new Map(
     courses.map((row) => [
       row.uid,
-      previewPayload.parse(JSON.parse(row.payload)),
+      previewPayload.parse({
+        ...JSON.parse(row.payload),
+        description: row.description,
+      }),
     ]),
   );
   const instructorRows = instructor
@@ -181,7 +184,9 @@ export async function coursePreviews(
       description:
         course.llm_summary
           ?.replace(`${course.course_id} ${item.title} `, "")
-          .replace(/^./, (letter: string) => letter.toUpperCase()) || null,
+          .replace(/^./, (letter: string) => letter.toUpperCase()) ||
+        course.description ||
+        null,
       discovery: {
         term,
         offered: course.offerings.some((row) => row.term_id === term),
