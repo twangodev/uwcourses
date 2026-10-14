@@ -9,7 +9,11 @@ from uwcourses.student_context import (
     select_course_grades,
     review_course_correction,
 )
-from uwcourses.student_summary import generate_student, validate_claims
+from uwcourses.student_summary import (
+    generate_student,
+    historical_review_text,
+    validate_claims,
+)
 
 
 def grade(term, a, b, section=1):
@@ -41,6 +45,104 @@ def review(id, instructor):
 
 
 class StudentSummaryTests(unittest.TestCase):
+    def test_historical_prose_keeps_natural_scope_and_adds_missing_attribution(self):
+        for text in [
+            "In past reviews, Jane Doe was praised for clear explanations.",
+            "Earlier reviews describe a demanding workload.",
+            "Students in Jane Doe's previous classes reported weekly essays.",
+            "Historical reviewers praised the projects.",
+            "A past student noted that the final project was an essay.",
+            "A former student reported a demanding workload.",
+        ]:
+            with self.subTest(text=text):
+                self.assertEqual(historical_review_text(text, "Jane Doe"), text)
+        self.assertEqual(
+            historical_review_text(
+                "Reviewers praised Jane Doe's clear lectures.", "Jane Doe"
+            ),
+            "Past reviews of Jane Doe: Reviewers praised Jane Doe's clear lectures.",
+        )
+        self.assertTrue(
+            historical_review_text(
+                "A previous homework problem was difficult.", "Jane Doe"
+            ).startswith("Past reviews of Jane Doe:")
+        )
+
+    def test_historical_scope_can_be_added_to_individual_opinions_without_a_label(self):
+        self.assertEqual(
+            historical_review_text(
+                "One student found the course straightforward.", "Jane Doe"
+            ),
+            "A past student found the course straightforward.",
+        )
+        self.assertEqual(
+            historical_review_text("One reviewer praised the projects.", "Jane Doe"),
+            "A past reviewer praised the projects.",
+        )
+
+    def test_past_only_reviews_generate_one_preview_and_preserve_citations(self):
+        calls = []
+        historical = review("old-review", "Former Instructor")
+        task = load_task(
+            Path(__file__).resolve().parents[2] / "inference/tasks/student_summary.json"
+        )
+        payload = {
+            "source_run": "run",
+            "summary_seed": {"job_id": "parent", "output": {"sections": {}}},
+            "student_context": {
+                "course_id": "COMPSCI 300",
+                "term_id": "1274",
+                "term_name": "Spring 2027",
+                "offered": True,
+                "current_instructors": [
+                    {
+                        "name": "New Teacher",
+                        "instructor_uid": "uw:new",
+                        "rmp_instructor_id": None,
+                        "reviews": [],
+                        "grade_records": [],
+                    }
+                ],
+                "historical_reviews": [historical],
+                "teaching_history": [],
+                "grade_records": [],
+            },
+        }
+
+        def fake(profile, scoped_task, request):
+            calls.append(request)
+            return {
+                "quick_take": [
+                    {
+                        "text": "Past reviews of Former Instructor describe clear lectures.",
+                        "review_ids": ["review:1"],
+                    }
+                ],
+                "difficulty_workload": [],
+                "student_experience": [],
+            }, {}
+
+        result, _ = generate_student(
+            {"model": "test", "revision": "abc", "max_output_tokens": 1000},
+            task,
+            payload,
+            generate=fake,
+        )
+        value = result["sections"]["student_summary"]["value"]
+        self.assertEqual([request["mode"] for request in calls], ["overview"])
+        self.assertEqual(value["historical_context"], [])
+        self.assertEqual(
+            value["current_instructors"][0]["review_status"], "no_course_reviews"
+        )
+        self.assertEqual(
+            value["quick_take"][0]["text"],
+            "Past reviews of Former Instructor describe clear lectures.",
+        )
+        citation = value["quick_take"][0]["citations"][0]
+        self.assertEqual(citation["source_review_id"], "old-review")
+        self.assertEqual(citation["instructor_name"], "Former Instructor")
+        self.assertEqual(citation["run_id"], "run")
+
     def test_review_course_corrections_require_explicit_resolvable_opening(self):
         aliases = {"AAE 635": "AAE 635", "ECE 759": "COMPSCI/ECE 759"}
         for text, expected in [

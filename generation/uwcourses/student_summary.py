@@ -108,6 +108,23 @@ def contains_inline_review_handle(text):
     return bool(re.search(r"\breview:\d+\b", text, re.I))
 
 
+def historical_review_text(text, names):
+    """Preserve clear past-review attribution without repeating it as a prefix."""
+    if re.search(
+        r"\bhistorical\b|\bpast (?:students?|reviewers?|reviews?|reports?|feedback|class(?:es)?|experiences?)\b"
+        r"|\bformer (?:students?|reviewers?)\b"
+        r"|\b(?:earlier|previous) (?:reviews?|reports?|class(?:es)?|offerings?)\b",
+        text,
+        re.I,
+    ):
+        return text
+    natural = re.sub(r"^One (student|reviewer)\b", r"A past \1", text, flags=re.I)
+    if natural != text:
+        return natural
+    label = f"Past reviews of {names}" if names and len(names) < 80 else "Past reviews"
+    return label + ": " + text
+
+
 def validate_claims(value, payload):
     reviews = {r["citation_id"]: r for r in payload["reviews"]}
     # Hard rejection ceilings allow modest room beyond the prompt's concise targets.
@@ -461,13 +478,7 @@ def generate_student(profile, task, payload, generate=None):
                                 }
                             )
                         )
-                        if "historical" not in claim["text"].casefold():
-                            label = (
-                                f"Historical reviews of {names}"
-                                if len(names) < 80
-                                else "Historical reviews"
-                            )
-                            claim["text"] = label + ": " + claim["text"]
+                        claim["text"] = historical_review_text(claim["text"], names)
             return {
                 k: result[k]
                 for k in (
@@ -532,7 +543,9 @@ def generate_student(profile, task, payload, generate=None):
     historical_reviews = [
         {**r, "instructor_scope": "historical"} for r in source["historical_reviews"]
     ]
-    history = run("history", historical_reviews)
+    # Without current-instructor reviews, the overview already summarizes this
+    # same historical evidence. A second independent draft repeats its points.
+    history = run("history", historical_reviews) if current_reviews else None
     overview_reviews = (
         sample_reviews(current_reviews, 30) if current_reviews else historical_reviews
     )

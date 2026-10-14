@@ -1023,7 +1023,11 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(cited["quality_rating"], 4)
         self.assertEqual(len(checks), 2)
         self.assertEqual(
-            checks[0]["inference"], {"thinking": True, "max_output_tokens": 8192}
+            checks[0]["inference"],
+            {
+                "thinking": task["grounding_task"]["thinking"],
+                "max_output_tokens": task["grounding_task"]["max_output_tokens"],
+            },
         )
         self.assertTrue(checks[0]["output"]["provenance"]["conversation"])
         self.assertEqual(checks[1]["output"]["issues"], [])
