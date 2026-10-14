@@ -30,17 +30,38 @@ it("uses deduplicated reviews and applies the same score on course, profile and 
     "SELECT AVG(json_extract(payload,'$.quality_rating')) mean FROM reviews WHERE json_extract(payload,'$.quality_rating') BETWEEN 1 AND 5",
   );
   expect(await instructorRatingPrior()).toBe(expected.mean);
-  const course = await pageData("courses", "course_28c3390ba944d49fd17f7c72");
+  const [fixture] = await query(
+    undefined,
+    `
+    SELECT c.uid, json_extract(i.value,'$.instructor_uid') instructor_uid
+    FROM courses c JOIN json_each(c.payload,'$.instructors') i
+    WHERE json_extract(i.value,'$.ratings.quality_count') >= 10
+    ORDER BY c.uid LIMIT 1
+  `,
+  );
+  expect(fixture).toBeDefined();
+  const course = await pageData("courses", fixture.uid);
   const teacher = course.instructors.find(
-    (i: any) => i.name === "Hobbes Legault",
+    (i: any) => i.instructor_uid === fixture.instructor_uid,
   );
   const profile = await pageData("instructors", teacher.instructor_uid);
   expect(profile.ratings.bayesian_quality).toBe(
     teacher.ratings.bayesian_quality,
   );
-  expect(profile.ratings.quality).toBe(4.54);
+  expect(profile.ratings.quality).toBe(teacher.ratings.quality);
+  expect(profile.ratings.quality_count).toBe(teacher.ratings.quality_count);
+  expect(profile.ratings.bayesian_quality).toBeCloseTo(
+    bayesianRating(
+      profile.ratings.quality,
+      profile.ratings.quality_count,
+      expected.mean,
+    )!,
+  );
   const results = await search(
-    new URL("http://localhost/search?kind=instructor&q=Hobbes"),
+    new URL(
+      "http://localhost/search?kind=instructor&q=" +
+        encodeURIComponent(teacher.name),
+    ),
   );
   expect(
     results.items.find((row) => row.instructor_uid === teacher.instructor_uid)

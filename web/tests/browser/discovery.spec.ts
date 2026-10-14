@@ -1,4 +1,6 @@
 import { test, expect } from "@playwright/test";
+import { importedStatus } from "./dataset";
+import { termName } from "../../../src/lib/format";
 const instructor = "instructor_a65e64df990aa3bab98ee125";
 test("department overview stays historical while finder and term statistics change", async ({
   page,
@@ -14,7 +16,7 @@ test("department overview stays historical while finder and term statistics chan
     .locator('[role="img"]')
     .evaluateAll((nodes) => nodes.map((n) => n.getAttribute("aria-label")));
   await expect(page.locator(".discovery-card").first()).toContainText(
-    "Offering recorded · Fall 2026",
+    `Offering recorded · ${termName(importedStatus.term)}`,
   );
   await overview.screenshot({
     animations: "disabled",

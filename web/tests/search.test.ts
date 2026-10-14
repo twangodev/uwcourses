@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("$app/environment", () => ({ building: true, dev: true }));
 import {
   search,
+  query,
   gradeRows,
   assertRevision,
   status,
@@ -22,8 +23,26 @@ describe("course discovery", () => {
     }
   });
   it("finds partial cross-list aliases", async () => {
-    const r = await search(new URL("http://localhost/search?q=CS%2FECE%20759"));
-    expect(r.items.some((c) => c.course_id.includes("759"))).toBe(true);
+    const [fixture] = await query(
+      undefined,
+      `
+      SELECT code FROM courses
+      WHERE length(code) - length(replace(code,'/','')) >= 2
+      ORDER BY uid LIMIT 1
+    `,
+    );
+    expect(fixture).toBeDefined();
+    const split = fixture.code.lastIndexOf(" ");
+    const subjects = fixture.code.slice(0, split).split("/");
+    const partial = subjects.slice(0, 2).join("/") + fixture.code.slice(split);
+    const r = await search(
+      new URL(
+        "http://localhost/search?q=" +
+          encodeURIComponent(partial) +
+          "&availability=all",
+      ),
+    );
+    expect(r.items.some((c) => c.course_id === fixture.code)).toBe(true);
   });
   it("combines full text and department filters", async () => {
     const r = await search(
@@ -68,11 +87,13 @@ describe("course discovery", () => {
       ),
     );
     expect(taught.instructor_name).toBeTruthy();
-    expect(taught.items.some((course) => course.course_id === "COMPSCI 300")).toBe(
-      true,
-    );
+    expect(
+      taught.items.some((course) => course.course_id === "COMPSCI 300"),
+    ).toBe(true);
     const missing = await search(
-      new URL("http://localhost/search?instructor=instructor_missing&availability=all"),
+      new URL(
+        "http://localhost/search?instructor=instructor_missing&availability=all",
+      ),
     );
     expect(missing.total).toBe(0);
     expect(missing.instructor_name).toBeNull();
@@ -83,17 +104,17 @@ describe("course discovery", () => {
         "http://localhost/search?q=COMPSCI%20300&requisites=none&availability=all",
       ),
     );
-    expect(open.items.some((course) => course.course_id === "COMPSCI 300")).toBe(
-      false,
-    );
+    expect(
+      open.items.some((course) => course.course_id === "COMPSCI 300"),
+    ).toBe(false);
     const review = await search(
       new URL(
         "http://localhost/search?q=COMPSCI%20200&requisites=none&availability=all",
       ),
     );
-    expect(review.items.some((course) => course.course_id === "COMPSCI 200")).toBe(
-      false,
-    );
+    expect(
+      review.items.some((course) => course.course_id === "COMPSCI 200"),
+    ).toBe(false);
   });
   it("rejects mixed revisions", async () => {
     await expect(

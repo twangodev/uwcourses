@@ -38,6 +38,7 @@ export const teacherRow = z.object({
   quality_count: z.number().nullable(),
 });
 export const previewRecordRow = z.object({
+  description: z.string().nullable(),
   uid: z.string(),
   payload: z.string(),
   grade_term: z.string().nullable().optional(),
@@ -52,6 +53,7 @@ export const previewPayload = z
     course_id: z.string(),
     semester: z.string().nullable().optional(),
     llm_summary: z.string().nullable().optional(),
+    description: z.string().nullable().optional(),
     offerings: z.array(z.object({ term_id: z.string() })),
     sections: z
       .array(

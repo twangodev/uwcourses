@@ -42,7 +42,8 @@
         <p class="text-[12px] text-muted mt-2.5 offering">
           {d.offered
             ? `Offering recorded · ${termName(d.term)}`
-            : `No offering record · ${termName(d.term)}`}
+            : `No offering record · ${termName(d.term)}`} ·
+          <a href={courseUrl(c.course_id) + "#evidence"}>Sources</a>
         </p>
         {#if d.claim}<div class="max-w-[70ch] text-[14px] takeaway my-5 mx-0">
             <Claims
@@ -98,9 +99,11 @@
                 historical GPA · <AnimatedNumber value={d.history.count} /> grades
               </p>
               <small class="text-muted text-[11px]"
-                >{#if d.history.firstTerm && d.history.lastTerm}{termName(d.history.firstTerm)}–{termName(
-                  d.history.lastTerm,
-                )}{/if}{d.history.count < 100 ? " · limited sample" : ""}</small
+                >{#if d.history.firstTerm && d.history.lastTerm}{termName(
+                    d.history.firstTerm,
+                  )}–{termName(d.history.lastTerm)}{/if}{d.history.count < 100
+                  ? " · limited sample"
+                  : ""}</small
               >
             </div>{:else}<p class="muted">No recorded grade history</p>{/if}
         </div>

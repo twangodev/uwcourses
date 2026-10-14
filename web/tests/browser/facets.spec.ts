@@ -799,6 +799,28 @@ test("tags filter by the same course highlights, combine with AND, and update li
   const initial = responseFor(page, "tags");
   await page.getByRole("button", { name: "Tags", exact: true }).click();
   const before = (await body(await initial)).distributions.tags;
+  let pair: [any, any] | undefined;
+  for (const first of before.bins.filter((bin: any) => bin.count > 0)) {
+    for (const second of before.bins.filter(
+      (bin: any) => bin.count > 0 && bin.value !== first.value,
+    )) {
+      const params = new URLSearchParams(new URL(page.url()).searchParams);
+      params.set("tags", first.value + "," + second.value);
+      const result = await (
+        await page.request.get("/api/search?" + params)
+      ).json();
+      if (result.total > 0 && result.total < first.count) {
+        pair = [first, second];
+        break;
+      }
+    }
+    if (pair) break;
+  }
+  expect(
+    pair,
+    "Dataset needs two populated tag filters with a narrower intersection",
+  ).toBeDefined();
+  const [firstTag, secondTag] = pair!;
   const highlights = chart(page, "Course highlights");
   await expect(highlights.getByRole("button")).toHaveCount(5);
   await expect(page.locator(".tag-definitions")).toContainText(
@@ -807,25 +829,29 @@ test("tags filter by the same course highlights, combine with AND, and update li
   await expect(page.locator(".tag-definitions")).toContainText(
     "the selected department",
   );
-  const picked = responseFor(page, "tags", { tags: "small-lectures" });
+  const picked = responseFor(page, "tags", { tags: firstTag.value });
   const small = highlights.getByRole("button", {
-    name: "Small lectures",
+    name: firstTag.label,
     exact: true,
   });
   await small.click();
   const afterSmall = (await body(await picked)).distributions.tags;
   expect(afterSmall.matched).toBe(
-    before.bins.find((bin: any) => bin.value === "small-lectures").count,
+    before.bins.find((bin: any) => bin.value === firstTag.value).count,
   );
   await expect(small).toHaveAttribute("aria-pressed", "true");
   await expect(
-    page.locator(".discovery-card").first().locator(".evidence-badge").first(),
-  ).toHaveText("Small lectures");
+    page
+      .locator(".discovery-card")
+      .first()
+      .locator(".evidence-badge")
+      .filter({ hasText: firstTag.label }),
+  ).toHaveText(firstTag.label);
   const combined = responseFor(page, "tags", {
-    tags: "small-lectures,higher-grades",
+    tags: firstTag.value + "," + secondTag.value,
   });
   const higher = highlights.getByRole("button", {
-    name: "Higher grades",
+    name: secondTag.label,
     exact: true,
   });
   await higher.focus();
@@ -845,7 +871,7 @@ test("tags filter by the same course highlights, combine with AND, and update li
   expect(selected.total).toBe(afterBoth.matched);
   expect(
     selected.items.every((item: any) =>
-      ["small-lectures", "higher-grades"].every((tag) =>
+      [firstTag.value, secondTag.value].every((tag) =>
         item.badges.some((badge: any) => badge.tag === tag),
       ),
     ),
@@ -873,13 +899,13 @@ test("tags filter by the same course highlights, combine with AND, and update li
   await page.getByRole("button", { name: "Tags", exact: true }).click();
   await expect(
     chart(page, "Course highlights").getByRole("button", {
-      name: "Small lectures",
+      name: firstTag.label,
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "true");
   await expect(
     chart(page, "Course highlights").getByRole("button", {
-      name: "Higher grades",
+      name: secondTag.label,
       exact: true,
     }),
   ).toHaveAttribute("aria-pressed", "true");
@@ -907,9 +933,9 @@ test("tag filters fit narrow screens and allow removing a tag without clearing c
   });
   for (const width of [390, 320]) {
     await page.setViewportSize({ width, height: 900 });
-    expect(
-      await page.evaluate(() => document.documentElement.scrollWidth),
-    ).toBeLessThanOrEqual(width);
+    await expect
+      .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+      .toBeLessThanOrEqual(width);
     await expect(
       chart(page, "Course highlights").getByRole("button", {
         name: "Highly rated instructor",

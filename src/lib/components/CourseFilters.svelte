@@ -528,6 +528,12 @@
     gap: 14px;
     min-width: 0;
   }
+  .panel-content.course > .column {
+    max-height: min(21rem, 55vh);
+    overflow-y: auto;
+    scrollbar-gutter: stable;
+    padding-right: 4px;
+  }
   .tag-definitions {
     gap: 10px;
     font-size: 12px;
