@@ -408,10 +408,13 @@ class UnifiedTests(unittest.TestCase):
             )
         theme["subject_instructor_id"] = "i1"
         theme["summary"] = "A good instructor."
-        with self.assertRaisesRegex(ValueError, "exact instructor_name"):
+        with self.assertRaisesRegex(ValueError, "exact instructor_name") as failure:
             validate_section(
                 "student_experience", value, self.task, self.root, self.lookup
             )
+        self.assertIn("themes[0].summary", str(failure.exception))
+        self.assertIn("subject_instructor_id 'i1'", str(failure.exception))
+        self.assertIn(self.root["reviews"][0]["instructor_name"], str(failure.exception))
 
     def test_sentiment_summary_preserves_historical_teacher_scope(self):
         self.root["reviews"] = [

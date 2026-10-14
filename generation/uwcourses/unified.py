@@ -344,7 +344,7 @@ def validate_section(name, candidate, task, root, lookup):
                 raise ValueError(
                     "Supported sentiment requires attributable reviews and themes"
                 )
-            for theme in value["themes"]:
+            for theme_index, theme in enumerate(value["themes"]):
                 original_ids = theme["review_ids"]
                 handles = review_handles(root)
                 ids = [
@@ -402,7 +402,9 @@ def validate_section(name, candidate, task, root, lookup):
                     name = people[subject]
                     if not name or name not in theme["summary"]:
                         raise ValueError(
-                            "Instructor-specific summary must include the exact instructor_name from its cited reviews"
+                            f"themes[{theme_index}].summary ({theme['aspect']}) must include "
+                            f"the exact instructor_name {name!r} for subject_instructor_id {subject!r}. "
+                            "Keep the claim grounded in its cited reviews."
                         )
                 theme["scope"] = {
                     "instructors": [
