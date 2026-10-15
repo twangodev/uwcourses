@@ -50,7 +50,7 @@
     "mdsvex": "^0.12.8",
     "negotiator": "^1.1.0",
     "prettier": "^3.9.6",
-    "prettier-plugin-svelte": "^3.5.2",
+    "prettier-plugin-svelte": "^4.1.1",
     "rehype-katex-svelte": "^1.2.0",
     "remark-footnotes": "2",
     "remark-gfm": "^4.0.1",
