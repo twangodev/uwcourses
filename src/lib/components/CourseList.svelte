@@ -128,6 +128,9 @@
 </div>
 
 <style>
+  .course-description {
+    display: block;
+  }
   @media (max-width: 600px) {
     .card-bottom {
       align-items: start;
