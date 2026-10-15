@@ -9,7 +9,10 @@ from uwcourses.student_context import (
     select_course_grades,
     review_course_correction,
 )
-from uwcourses.student_summary import generate_student, validate_claims
+from uwcourses.student_summary import (
+    generate_student,
+    validate_claims,
+)
 
 
 def grade(term, a, b, section=1):
@@ -41,6 +44,72 @@ def review(id, instructor):
 
 
 class StudentSummaryTests(unittest.TestCase):
+    def test_past_only_reviews_generate_one_preview_and_preserve_citations(self):
+        calls = []
+        historical = review("old-review", "Former Instructor")
+        task = load_task(
+            Path(__file__).resolve().parents[2] / "inference/tasks/student_summary.json"
+        )
+        payload = {
+            "source_run": "run",
+            "summary_seed": {"job_id": "parent", "output": {"sections": {}}},
+            "student_context": {
+                "course_id": "COMPSCI 300",
+                "term_id": "1274",
+                "term_name": "Spring 2027",
+                "offered": True,
+                "current_instructors": [
+                    {
+                        "name": "New Teacher",
+                        "instructor_uid": "uw:new",
+                        "rmp_instructor_id": None,
+                        "reviews": [],
+                        "grade_records": [],
+                    }
+                ],
+                "historical_reviews": [historical],
+                "teaching_history": [],
+                "grade_records": [],
+            },
+        }
+
+        def fake(profile, scoped_task, request):
+            calls.append(request)
+            return {
+                "quick_take": [
+                    {
+                        "text": historical["comment"],
+                        "review_ids": ["review:1"],
+                    }
+                ],
+                "difficulty_workload": [],
+                "student_experience": [],
+            }, {}
+
+        result, _ = generate_student(
+            {"model": "test", "revision": "abc", "max_output_tokens": 1000},
+            task,
+            payload,
+            generate=fake,
+        )
+        value = result["sections"]["student_summary"]["value"]
+        self.assertEqual([request["mode"] for request in calls], ["overview"])
+        self.assertEqual(value["historical_context"], [])
+        self.assertEqual(
+            value["current_instructors"][0]["review_status"], "no_course_reviews"
+        )
+        self.assertEqual(
+            value["quick_take"][0]["text"],
+            historical["comment"],
+        )
+        self.assertEqual(
+            value["quick_take"][0]["evidence_scope"], "past_student_reviews"
+        )
+        citation = value["quick_take"][0]["citations"][0]
+        self.assertEqual(citation["source_review_id"], "old-review")
+        self.assertEqual(citation["instructor_name"], "Former Instructor")
+        self.assertEqual(citation["run_id"], "run")
+
     def test_review_course_corrections_require_explicit_resolvable_opening(self):
         aliases = {"AAE 635": "AAE 635", "ECE 759": "COMPSCI/ECE 759"}
         for text, expected in [
@@ -321,6 +390,17 @@ class StudentSummaryTests(unittest.TestCase):
         teaching = section["value"]["teaching_history"][0]
         self.assertIn("Jane Doe is recorded teaching in 1.", teaching["text"])
         self.assertEqual(teaching["citations"], [grade("1", 1, 1)["citation"]])
+        value = section["value"]
+        for claims in (
+            value["quick_take"],
+            value["historical_context"],
+            *(person["summary"] for person in value["current_instructors"]),
+        ):
+            for claim in claims:
+                if all(c["type"] == "review" for c in claim["citations"]):
+                    self.assertEqual(claim["evidence_scope"], "past_student_reviews")
+                else:
+                    self.assertNotIn("evidence_scope", claim)
         current = section["value"]["current_instructors"]
         self.assertEqual(current[1]["review_status"], "no_course_reviews")
         self.assertEqual(

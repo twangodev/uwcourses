@@ -184,9 +184,20 @@ class UnifiedTests(unittest.TestCase):
             with self.subTest(field=field):
                 old = citation[field]
                 citation[field] = bad
-                with self.assertRaises(ValueError):
+                with self.assertRaises(ValueError) as failure:
                     validate_section(
                         "search_profile", self.search, self.task, self.root, self.lookup
+                    )
+                if field == "quote":
+                    message = str(failure.exception)
+                    outcome = self.root["official_learning_outcomes"][
+                        citation["outcome_index"]
+                    ]
+                    self.assertIn(repr(bad), message)
+                    self.assertIn(repr(outcome["text"]), message)
+                    self.assertIn(
+                        f"official_learning_outcomes[{citation['outcome_index']}]",
+                        message,
                     )
                 citation[field] = old
 
@@ -408,10 +419,13 @@ class UnifiedTests(unittest.TestCase):
             )
         theme["subject_instructor_id"] = "i1"
         theme["summary"] = "A good instructor."
-        with self.assertRaisesRegex(ValueError, "exact instructor_name"):
+        with self.assertRaisesRegex(ValueError, "exact instructor_name") as failure:
             validate_section(
                 "student_experience", value, self.task, self.root, self.lookup
             )
+        self.assertIn("themes[0].summary", str(failure.exception))
+        self.assertIn("subject_instructor_id 'i1'", str(failure.exception))
+        self.assertIn(self.root["reviews"][0]["instructor_name"], str(failure.exception))
 
     def test_sentiment_summary_preserves_historical_teacher_scope(self):
         self.root["reviews"] = [

@@ -166,6 +166,15 @@ class EnrollmentSpider(SourceSpider):
     allowed_domains = ["public.enroll.wisc.edu"]
     base = "https://public.enroll.wisc.edu/api/search/v1"
 
+    browser_headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Origin": "https://public.enroll.wisc.edu",
+        "Referer": "https://public.enroll.wisc.edu/",
+    }
+
+    def request(self, url, callback, **kwargs):
+        return super().request(url, callback, headers=self.browser_headers, **kwargs)
+
     async def start(self):
         yield self.request(self.base + "/aggregate", self.terms)
 
@@ -195,6 +204,7 @@ class EnrollmentSpider(SourceSpider):
     def page(self, page):
         return JsonRequest(
             self.base,
+            headers=self.browser_headers,
             data={
                 "selectedTerm": self.semester,
                 "queryString": "",

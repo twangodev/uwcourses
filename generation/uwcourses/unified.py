@@ -38,7 +38,10 @@ def outcome_quote(citation, course):
     quote = citation["quote"]
     if not quote.strip() or quote not in outcome["text"]:
         raise ValueError(
-            "Outcome evidence requires an exact substring of the selected official outcome"
+            "Outcome evidence requires an exact substring of the selected official outcome; "
+            f"{citation['course_id']}.official_learning_outcomes[{index}] "
+            f"received {quote!r}; selected source text is {outcome['text']!r}. "
+            "Copy a short excerpt verbatim, preserving punctuation and quotation marks."
         )
     return quote
 
@@ -344,7 +347,7 @@ def validate_section(name, candidate, task, root, lookup):
                 raise ValueError(
                     "Supported sentiment requires attributable reviews and themes"
                 )
-            for theme in value["themes"]:
+            for theme_index, theme in enumerate(value["themes"]):
                 original_ids = theme["review_ids"]
                 handles = review_handles(root)
                 ids = [
@@ -402,7 +405,9 @@ def validate_section(name, candidate, task, root, lookup):
                     name = people[subject]
                     if not name or name not in theme["summary"]:
                         raise ValueError(
-                            "Instructor-specific summary must include the exact instructor_name from its cited reviews"
+                            f"themes[{theme_index}].summary ({theme['aspect']}) must include "
+                            f"the exact instructor_name {name!r} for subject_instructor_id {subject!r}. "
+                            "Keep the claim grounded in its cited reviews."
                         )
                 theme["scope"] = {
                     "instructors": [

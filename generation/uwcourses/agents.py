@@ -125,6 +125,20 @@ def output_budget(profile, messages, task, schema, repair=False):
         + canonical(schema)
     )
     estimated_input = len(raw.encode("utf-8")) // 2 + 2048
+    # Previous provider usage already includes the system prompt and schemas.
+    # Counting their serialized copies again can falsely exhaust the window
+    # after a validation retry, leaving only 256 tokens for a complete answer.
+    for index in range(len(messages) - 1, -1, -1):
+        message = messages[index]
+        if isinstance(message, ModelResponse) and message.usage.input_tokens:
+            added = canonical(serialize_messages(messages[index + 1 :]))
+            estimated_input = (
+                message.usage.input_tokens
+                + message.usage.output_tokens
+                + len(added.encode("utf-8")) // 2
+                + 512
+            )
+            break
     remaining = profile.get("context_length", 32768) - estimated_input
     return max(
         256,
@@ -156,9 +170,20 @@ NATIVE_INSTRUCTIONS = (
     "Follow the supplied output schema."
 )
 
+NATIVE_JSON_INSTRUCTIONS = (
+    "Return the three sections as one JSON object matching the supplied schema. "
+    "Use only the supplied frozen course evidence; no external lookups are available. "
+    "On validation feedback, return null for accepted or deferred sections and "
+    "repair only sections_needed. Never encode nested objects as JSON strings."
+)
+
 
 def native_prompt(task):
     prompt = task["prompt"]
+    if task.get("output_transport") == "native_json":
+        if prompt.startswith(NATIVE_JSON_INSTRUCTIONS):
+            return prompt
+        return NATIVE_JSON_INSTRUCTIONS + "\n\n" + prompt
     if prompt.startswith(NATIVE_INSTRUCTIONS):
         return prompt
     if prompt.startswith("Your first turn is a lookup plan only:"):
@@ -202,6 +227,8 @@ class PinnedModel(OpenAIChatModel):
 
 async def _conversation(profile, task, payload, context, model=None):
     from .jobs import WORKER_VERSION, generation_schema
+
+    native_json = task.get("output_transport") == "native_json"
 
     reused = payload.get("reuse_seed") if not payload.get("repair_seed") else None
     seed = payload.get("repair_seed") or reused
@@ -360,11 +387,14 @@ async def _conversation(profile, task, payload, context, model=None):
                 "chat_template_kwargs": {"enable_thinking": thinking},
             },
         }
-        if direct_recovery or (
-            seed
-            and (
-                sections.get("search_profile", {}).get("status") != "invalid"
-                or attempts
+        if not native_json and (
+            direct_recovery
+            or (
+                seed
+                and (
+                    sections.get("search_profile", {}).get("status") != "invalid"
+                    or attempts
+                )
             )
         ):
             # A named tool choice also works when vLLM downgrades the generic
@@ -386,7 +416,11 @@ async def _conversation(profile, task, payload, context, model=None):
 
         agent = Agent(
             selected_model,
-            output_type=[
+            output_type=NativeOutput(
+                StructuredDict(schema, name="CourseSections"), strict=True
+            )
+            if native_json
+            else [
                 ToolOutput(
                     StructuredDict(schema, name="CourseSections"),
                     name="submit_sections",
@@ -399,7 +433,6 @@ async def _conversation(profile, task, payload, context, model=None):
             retries={"output": turns - 1, "tools": 1},
         )
 
-        @agent.tool_plain
         def get_course(course_id: str, from_course: str) -> dict:
             """Read a related course from this frozen snapshot; from_course must already be provided."""
             found = lookup.get_course(course_id, from_course)
@@ -408,6 +441,9 @@ async def _conversation(profile, task, payload, context, model=None):
                 if found and "course_reference" in found
                 else found
             )
+
+        if not native_json:
+            agent.tool_plain(get_course)
 
         @agent.output_validator
         def validate(ctx: RunContext, value: dict) -> dict:
@@ -608,7 +644,7 @@ async def _conversation(profile, task, payload, context, model=None):
                                     ]
                         prompt = canonical(
                             {
-                                "instruction": "Your previous reasoning exhausted the token budget. Submit a concise corrected answer now using submit_sections. Do not continue the analysis. Accepted sections must be null.",
+                                "instruction": "Your previous reasoning exhausted the token budget. Submit a concise corrected JSON answer now. Do not continue the analysis. Accepted sections must be null.",
                                 "sections_needed": [
                                     n
                                     for n in SECTIONS

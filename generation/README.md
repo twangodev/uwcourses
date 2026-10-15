@@ -198,6 +198,14 @@ jobs can run alongside a scrape. Each build/job permits only one active worker.
 
 ## Qwen requirements parsing
 
+For Qwen 3.8 27B, lock the `enrichment-qwen38` profile and use
+`inference/tasks/course_enrichment_qwen38.json`. This task uses schema-constrained
+JSON responses from the supplied course evidence. The same citation and graph
+validators apply; related-course lookup tools are available with the tool-based
+task below. Keep the locked model revision for generation and repair. Student
+summaries continue to use `inference/tasks/student_summary.json` with the same
+locked profile and the completed enrichment job as `--reuse-job`.
+
 For combined search metadata, requirements, and evidence-backed student experience,
 use `inference/tasks/course_enrichment.json` with the `enrichment-unified` profile:
 

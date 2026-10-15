@@ -8,6 +8,7 @@ from pathlib import Path
 
 from pydantic_ai import ModelMessagesTypeAdapter
 from pydantic_ai.messages import (
+    ModelRequest,
     ModelResponse,
     RetryPromptPart,
     TextPart,
@@ -31,11 +32,96 @@ from uwcourses.agents import (
     PinnedModel,
     capture_tool_definitions,
     recorded_tool_provenance,
+    native_prompt,
+    output_budget,
 )
 from uwcourses.unified import validate_section
 
 
 class AgentTests(unittest.TestCase):
+    def test_retry_budget_uses_measured_tokens_and_reserves_context_space(self):
+        messages = [
+            ModelRequest(parts=[UserPromptPart("source " * 10000)]),
+            ModelResponse(
+                parts=[TextPart("candidate " * 1000)],
+                usage=RequestUsage(input_tokens=12000, output_tokens=2000),
+            ),
+            ModelRequest(parts=[UserPromptPart("Correct the cited name.")]),
+        ]
+        profile = {"context_length": 32768, "max_output_tokens": 16384}
+        self.assertEqual(output_budget(profile, messages, self.task, {}), 8192)
+        messages[1].usage.input_tokens = 28000
+        messages[1].usage.output_tokens = 3000
+        self.assertLess(output_budget(profile, messages, self.task, {}), 1256)
+        self.assertGreater(output_budget(profile, messages, self.task, {}), 256)
+
+    def test_native_json_uses_response_schema_and_retains_domain_validation(self):
+        f = self.fixture
+        rejected = copy.deepcopy(f.search)
+        rejected["summary"]["evidence"][0]["quote"] = "fabricated quote"
+        model, wire = self.pinned_model(
+            [
+                {
+                    "search_profile": rejected,
+                    "requirements": f.requirements,
+                    "student_experience": f.experience,
+                },
+                {
+                    "search_profile": f.search,
+                    "requirements": None,
+                    "student_experience": None,
+                },
+            ]
+        )
+        output, _ = generate_unified(
+            f.profile,
+            {**self.task, "output_transport": "native_json"},
+            f.root,
+            f.context,
+            model,
+        )
+        self.assertEqual(len(wire), 2)
+        for request in wire:
+            self.assertFalse(request.get("tools"))
+            self.assertNotIn("tool_choice", request)
+            self.assertEqual(request["response_format"]["type"], "json_schema")
+            self.assertTrue(request["response_format"]["json_schema"]["strict"])
+        self.assertTrue(output["provenance"]["attempts"][0]["errors"])
+        for name, candidate in (
+            ("search_profile", f.search),
+            ("requirements", f.requirements),
+            ("student_experience", f.experience),
+        ):
+            expected = validate_section(name, candidate, self.task, f.root, f.lookup)
+            for key in ("status", "value", "error"):
+                self.assertEqual(output["sections"][name][key], expected[key])
+
+    def test_native_json_repair_does_not_replace_accepted_sections(self):
+        f = self.fixture
+        task = {**self.task, "output_transport": "native_json"}
+        prompt = native_prompt(task)
+        self.assertEqual(native_prompt({**task, "prompt": prompt}), prompt)
+        model, wire = self.pinned_model(
+            [
+                {
+                    "search_profile": None,
+                    "requirements": f.requirements,
+                    "student_experience": None,
+                },
+            ]
+        )
+        output, _ = generate_repair(
+            f.profile,
+            {**self.task, "output_transport": "native_json"},
+            self.seed,
+            f.context,
+            model,
+        )
+        self.assertNotIn("tool_choice", wire[0])
+        for name in ("search_profile", "student_experience"):
+            self.assertEqual(output["sections"][name], self.previous["sections"][name])
+        self.assertEqual(output["sections"]["requirements"]["status"], "valid")
+
     def pinned_model(self, answers):
         wire_requests = []
         replies = iter(answers)
@@ -937,7 +1023,11 @@ class AgentTests(unittest.TestCase):
         self.assertEqual(cited["quality_rating"], 4)
         self.assertEqual(len(checks), 2)
         self.assertEqual(
-            checks[0]["inference"], {"thinking": True, "max_output_tokens": 8192}
+            checks[0]["inference"],
+            {
+                "thinking": task["grounding_task"]["thinking"],
+                "max_output_tokens": task["grounding_task"]["max_output_tokens"],
+            },
         )
         self.assertTrue(checks[0]["output"]["provenance"]["conversation"])
         self.assertEqual(checks[1]["output"]["issues"], [])

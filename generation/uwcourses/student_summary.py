@@ -104,6 +104,14 @@ def describes_review_availability(text):
     )
 
 
+def describes_current_roster(text):
+    return bool(
+        re.search(
+            r"\bcurrent (?:instructors?|professors?|teachers?|roster)\b", text, re.I
+        )
+    )
+
+
 def contains_inline_review_handle(text):
     return bool(re.search(r"\breview:\d+\b", text, re.I))
 
@@ -145,6 +153,10 @@ def validate_claims(value, payload):
             if describes_review_availability(normalized):
                 raise ValueError(
                     "Do not describe review availability in a cited claim; runtime supplies availability separately. Summarize the supplied reviews instead."
+                )
+            if describes_current_roster(normalized):
+                raise ValueError(
+                    "Do not describe the current roster in a review claim; runtime supplies assigned instructors separately. Keep only the supported review experience."
                 )
             # Variation describes disagreement, not population-wide consensus.
             consensus_text = re.sub(
@@ -448,26 +460,7 @@ def generate_student(profile, task, payload, generate=None):
                         }
                         for i in handles
                     ]
-                    if mode == "history" or all(
-                        evidence[i].get("instructor_scope") == "historical"
-                        for i in handles
-                    ):
-                        names = ", ".join(
-                            sorted(
-                                {
-                                    evidence[i]["instructor_name"]
-                                    for i in handles
-                                    if evidence[i].get("instructor_name")
-                                }
-                            )
-                        )
-                        if "historical" not in claim["text"].casefold():
-                            label = (
-                                f"Historical reviews of {names}"
-                                if len(names) < 80
-                                else "Historical reviews"
-                            )
-                            claim["text"] = label + ": " + claim["text"]
+                    claim["evidence_scope"] = "past_student_reviews"
             return {
                 k: result[k]
                 for k in (
@@ -532,7 +525,9 @@ def generate_student(profile, task, payload, generate=None):
     historical_reviews = [
         {**r, "instructor_scope": "historical"} for r in source["historical_reviews"]
     ]
-    history = run("history", historical_reviews)
+    # Without current-instructor reviews, the overview already summarizes this
+    # same historical evidence. A second independent draft repeats its points.
+    history = run("history", historical_reviews) if current_reviews else None
     overview_reviews = (
         sample_reviews(current_reviews, 30) if current_reviews else historical_reviews
     )
@@ -544,7 +539,7 @@ def generate_student(profile, task, payload, generate=None):
         "student_experience": [],
     }
     value = {
-        "version": 2,
+        "version": 3,
         "context_hash": digest(source),
         "task_hash": digest(task),
         "profile_hash": profile_identity(profile),

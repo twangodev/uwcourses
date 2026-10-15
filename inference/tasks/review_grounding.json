@@ -1,10 +1,10 @@
 {
   "name": "review_grounding",
-  "version": 3,
+  "version": 7,
   "prompt_files": [
     "../prompts/review_grounding.md"
   ],
   "schema_file": "../schemas/review_grounding.json",
-  "thinking": true,
-  "max_output_tokens": 8192
+  "thinking": false,
+  "max_output_tokens": 4096
 }

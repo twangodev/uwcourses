@@ -71,3 +71,19 @@ concurrency = 4
 temperature = 0.0
 thinking = false
 server_args = ["--dtype", "bfloat16", "--reasoning-parser", "qwen3", "--gpu-memory-utilization", "0.85", "--max-num-seqs", "4", "--language-model-only", "--enable-auto-tool-choice", "--tool-call-parser", "qwen3_xml"]
+
+# Semester catalog enrichment and student summaries on the 96 GB local GPU.
+[profiles.enrichment-qwen38]
+model = "Qwen/Qwen3.8-27B"
+base_url = "http://127.0.0.1:8003/v1"
+runner = "generate"
+context_length = 32768
+max_output_tokens = 16384
+request_timeout_seconds = 1800
+concurrency = 32
+temperature = 0.7
+top_p = 0.8
+top_k = 20
+presence_penalty = 1.5
+thinking = false
+server_args = ["--dtype", "bfloat16", "--reasoning-parser", "qwen3", "--gpu-memory-utilization", "0.85", "--max-num-seqs", "32", "--language-model-only", "--enable-auto-tool-choice", "--tool-call-parser", "qwen3_xml", "--max-num-batched-tokens", "16384", "--kv-cache-dtype", "fp8"]

@@ -21,7 +21,7 @@ from .tasks import load_task
 from .store import Store, now
 
 
-WORKER_VERSION = 48
+WORKER_VERSION = 59
 
 
 def generation_schema(schema):
@@ -191,6 +191,10 @@ class Jobs:
             raise ValueError("Unknown task validator")
         if task.get("workflow") not in {None, "unified_v1", "student_summary_v1"}:
             raise ValueError("Unknown enrichment workflow")
+        if task.get("output_transport") not in {None, "native_json"}:
+            raise ValueError("Unknown output transport")
+        if task.get("output_transport") and task.get("workflow") != "unified_v1":
+            raise ValueError("Output transport applies only to unified enrichment")
         if reuse_job_ids and task.get("workflow") not in {
             "unified_v1",
             "student_summary_v1",

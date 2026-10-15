@@ -33,7 +33,7 @@ def reconcile(store, run):
     from uwcourses.enrollment_data import EnrollmentData, MadgradesData, TermData
     from uwcourses.instructors import FullInstructor, RMPData, merge_instructors
     from uwcourses.name_matcher import (
-        find_best_name_match,
+        iter_name_matches,
         find_best_structured_match,
     )
     from uwcourses.sanitization import sanitize_instructor_id
@@ -129,15 +129,11 @@ def reconcile(store, run):
     )
     faculty = store.records(run, "faculty")
     ratings = store.records(run, "ratings")
+    official_matches = dict(iter_name_matches(sorted(emails), list(faculty)))
     instructors = {}
     for name, email in sorted(emails.items()):
-        official = find_best_name_match(
-            query_name=name,
-            candidates=list(faculty),
-            threshold=80,
-            require_exact_last=True,
-        )
-        details = faculty.get(official.matched_item, {}) if official.is_match else {}
+        official = official_matches[name]
+        details = faculty.get(official, {})
         rating_record = ratings.get(name, {})
         candidates = rating_record.get("candidates", [])
         if "matched_teacher_id" in rating_record:
@@ -164,7 +160,7 @@ def reconcile(store, run):
             details.get("department"),
             details.get("credentials"),
             details.get("name")
-            or (official.matched_item if official.is_match else None),
+            or official,
         )
         if identifier not in instructors or (
             rating and not instructors[identifier].rmp_data

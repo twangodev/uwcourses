@@ -1,0 +1,22 @@
+{
+  "name": "course_enrichment",
+  "version": 22,
+  "workflow": "unified_v1",
+  "tool_limits": {
+    "max_calls": 6,
+    "max_depth": 2,
+    "max_chars": 12000
+  },
+  "ast_repair_attempts": 0,
+  "named_instructor_themes": true,
+  "prompt_files": [
+    "../prompts/evidence.md",
+    "../prompts/search.md",
+    "../prompts/requirements.md",
+    "../prompts/experience.md",
+    "../prompts/qwen_native.md"
+  ],
+  "schema_file": "../schemas/course_enrichment.json",
+  "search_profile_evidence_version": 3,
+  "output_transport": "native_json"
+}
