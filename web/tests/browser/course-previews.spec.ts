@@ -7,8 +7,8 @@ test("long course previews remain fully readable on a narrow screen", async ({
   request,
 }) => {
   const fixture = importedCourse(`
-    length(json_extract(payload,'$.llm_summary')) =
-    (SELECT max(length(json_extract(payload,'$.llm_summary'))) FROM courses)
+    length(coalesce(nullif(json_extract(payload,'$.llm_summary'),''), description)) =
+    (SELECT max(length(coalesce(nullif(json_extract(payload,'$.llm_summary'),''), description))) FROM courses)
   `);
   const query = new URLSearchParams({
     q: fixture.course_id,
