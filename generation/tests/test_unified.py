@@ -687,6 +687,19 @@ class UnifiedTests(unittest.TestCase):
             ),
             previous,
         )
+        refreshed = revalidate_output(
+            previous,
+            [],
+            self.task,
+            self.root,
+            self.lookup,
+            regenerate=["search_profile"],
+        )
+        self.assertEqual(refreshed["sections"]["search_profile"]["status"], "invalid")
+        self.assertIsNone(refreshed["sections"]["search_profile"]["candidate"])
+        self.assertEqual(previous, original)
+        for name in ("requirements", "student_experience"):
+            self.assertEqual(refreshed["sections"][name], original["sections"][name])
         previous["sections"]["search_profile"]["value"]["summary"]["text"] = (
             self.search["summary"]["text"][:-2]
         )

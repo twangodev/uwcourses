@@ -102,6 +102,12 @@ def parser():
         help="Recheck an accepted section against current validation before repair",
     )
     repair.add_argument(
+        "--regenerate-section",
+        action="append",
+        default=[],
+        help="Request a fresh model result for an accepted section while retaining the others",
+    )
+    repair.add_argument(
         "--task", type=Path, help="Updated repair prompt with the same output schema"
     )
     descriptions = {
@@ -393,6 +399,7 @@ def main(argv=None):
                     args.turns,
                     task_path=args.task,
                     revalidate_sections=args.revalidate_section,
+                    regenerate_sections=args.regenerate_section,
                 )
                 print(f"Created repair job {job}", flush=True)
                 result = jobs.status(job) if args.prepare_only else jobs.run(job)

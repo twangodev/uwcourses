@@ -20,20 +20,22 @@ from .store import Store
 from .unified import SECTIONS, validate_section
 
 
-def revalidate_output(output, names, task, root, lookup):
-    """Invalidate only sections rejected by the current validation policy."""
+def revalidate_output(output, names, task, root, lookup, regenerate=()):
+    """Recheck or explicitly refresh selected sections, retaining the others."""
     result = copy.deepcopy(output)
-    for name in names:
+    for name in dict.fromkeys([*names, *regenerate]):
         section = result.get("sections", {}).get(name, {})
         if section.get("status") != "valid" or section.get("value") is None:
             continue
         try:
+            if name in regenerate:
+                raise ValueError("Explicitly requested regeneration of this section")
             validate_section(name, section["value"], task, root, lookup)
         except (ValueError, KeyError, TypeError, jsonschema.ValidationError) as failure:
             result["sections"][name] = {
                 "status": "invalid",
                 "value": None,
-                "candidate": section["value"],
+                "candidate": None if name in regenerate else section["value"],
                 "error": str(failure),
             }
     return result
@@ -49,6 +51,7 @@ def create_repair(
     turns=3,
     task_path=None,
     revalidate_sections=(),
+    regenerate_sections=(),
 ):
     from .jobs import WORKER_VERSION
 
@@ -60,7 +63,7 @@ def create_repair(
     original = json.loads(parent["spec_json"])
     if original["task"].get("workflow") != "unified_v1":
         raise ValueError("Repair requires unified course enrichment")
-    if set(revalidate_sections) - set(SECTIONS):
+    if (set(revalidate_sections) | set(regenerate_sections)) - set(SECTIONS):
         raise ValueError("Unknown section requested for revalidation")
     profile = load_profile(profiles, profile_name)
     if profile.runner != "generate" or (profile.model, profile.revision) != (
@@ -84,17 +87,20 @@ def create_repair(
                 continue
             row = dict(saved)
             output = json.loads(row["output_json"])
-            if context:
+            if revalidate_sections or regenerate_sections:
                 output = revalidate_output(
                     output,
                     revalidate_sections,
                     original["task"],
-                    context.get(row["course_id"]),
+                    context.get(row["course_id"]) if context else None,
                     CourseLookup(
                         context,
                         row["course_id"],
                         **original["task"].get("tool_limits", {}),
-                    ),
+                    )
+                    if context
+                    else None,
+                    regenerate=regenerate_sections,
                 )
                 row["parent_output_json"] = row["output_json"]
                 row["output_json"] = canonical(output)
@@ -143,6 +149,7 @@ def create_repair(
         "selected_courses": len(rows),
         "repair_parent": parent_id,
         "revalidate_sections": sorted(set(revalidate_sections)),
+        "regenerate_sections": sorted(set(regenerate_sections)),
         "repair_parent_results_hash": digest(
             [
                 (r["course_id"], r.get("parent_output_json", r["output_json"]))
