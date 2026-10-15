@@ -603,13 +603,14 @@ class StudentSummaryTests(unittest.TestCase):
             generate=fake,
         )
         self.assertEqual(
-            limited["sections"]["search_profile"]["status"], "insufficient_evidence"
+            {k: v for k, v in limited["sections"].items() if k != "student_summary"},
+            {
+                k: v
+                for k, v in payload["summary_seed"]["output"]["sections"].items()
+                if k != "student_summary"
+            },
         )
-        self.assertIsNone(limited["sections"]["search_profile"]["value"])
-        self.assertEqual(
-            limited["provenance"]["section_overrides"]["search_profile"]["reason"],
-            "empty_description",
-        )
+        self.assertEqual(limited["provenance"]["section_overrides"], {})
         self.assertEqual(result["sections"]["search_profile"], base["search_profile"])
 
     def test_current_roster_uses_term_and_deduplicates_cross_listings(self):

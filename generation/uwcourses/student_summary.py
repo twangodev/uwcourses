@@ -57,7 +57,8 @@ def scope_prompt(prompt, mode):
 
 
 def summary_seeds(jobs, ids, run, *, allow_partial=False):
-    seeds = {}
+    """Reuse catalog sections and student prose from their respective owners."""
+    catalog, student = {}, {}
     for job in sorted(
         (jobs.status(i) for i in ids), key=lambda j: (j["created_at"], j["job_id"])
     ):
@@ -67,7 +68,9 @@ def summary_seeds(jobs, ids, run, *, allow_partial=False):
             raise ValueError(
                 "Student summary reuse requires completed jobs from the same snapshot"
             )
-        job_profile = json.loads(job["spec_json"])["profile"]
+        spec = json.loads(job["spec_json"])
+        job_profile = spec["profile"]
+        owns_student = spec["task"].get("workflow") == "student_summary_v1"
         for row in jobs.db.execute(
             select(results.c.course_id, results.c.output_json).where(
                 results.c.job_id == job["job_id"], results.c.status == "complete"
@@ -78,7 +81,8 @@ def summary_seeds(jobs, ids, run, *, allow_partial=False):
             timeout = original.get("provenance", {}).get("request_timeout_seconds")
             if timeout is not None:
                 profile["request_timeout_seconds"] = timeout
-            seeds[row["course_id"]] = {
+            target = student if owns_student else catalog
+            target[row["course_id"]] = {
                 "job_id": job["job_id"],
                 "profile": profile,
                 "failed_subtasks": [
@@ -92,6 +96,29 @@ def summary_seeds(jobs, ids, run, *, allow_partial=False):
                     if k in {"sections", "model", "model_revision", "task_version"}
                 },
             }
+    seeds = {}
+    for course in catalog.keys() | student.keys():
+        seed = copy.deepcopy(student.get(course) or catalog[course])
+        if course in catalog:
+            base = catalog[course]
+            sections = copy.deepcopy(base["output"]["sections"])
+            if course in student and "student_summary" in seed["output"]["sections"]:
+                sections["student_summary"] = seed["output"]["sections"][
+                    "student_summary"
+                ]
+            seed["output"]["sections"] = sections
+            seed["section_origins"] = {
+                name: {
+                    "job_id": base["job_id"],
+                    "model": base["output"].get("model"),
+                    "model_revision": base["output"].get("model_revision"),
+                    "task_version": base["output"].get("task_version"),
+                    "section_hash": digest(value),
+                }
+                for name, value in sections.items()
+                if name != "student_summary"
+            }
+        seeds[course] = seed
     return seeds
 
 
@@ -569,17 +596,6 @@ def generate_student(profile, task, payload, generate=None):
     seed = payload["summary_seed"]
     previous = seed["output"]
     sections = copy.deepcopy(previous["sections"])
-    overrides = {}
-    if source.get("has_description") is False:
-        sections["search_profile"] = {
-            "status": "insufficient_evidence",
-            "value": None,
-            "error": "The catalog description is empty; use the source title instead of inferred search metadata.",
-        }
-        overrides["search_profile"] = {
-            "source": "catalog",
-            "reason": "empty_description",
-        }
     sections["student_summary"] = {
         "status": "invalid" if errors else "valid",
         "value": value,
@@ -596,7 +612,8 @@ def generate_student(profile, task, payload, generate=None):
             "input_hash": digest(payload),
             "task_hash": digest(task),
             "section_origins": {
-                k: {
+                k: seed.get("section_origins", {}).get(k)
+                or {
                     "job_id": seed["job_id"],
                     "model": previous.get("model"),
                     "model_revision": previous.get("model_revision"),
@@ -607,7 +624,7 @@ def generate_student(profile, task, payload, generate=None):
                 if k != "student_summary"
             },
             "subtasks": traces,
-            "section_overrides": overrides,
+            "section_overrides": {},
             "reused_scopes": reused_scopes,
             "conversation": conversations,
         },

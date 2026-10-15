@@ -187,6 +187,92 @@ class LifecycleTests(unittest.TestCase):
         finally:
             jobs.close()
 
+    def test_summary_reuse_keeps_catalog_and_student_ownership_separate(self):
+        import copy
+        from uwcourses.student_summary import summary_seeds
+        from uwcourses.models import digest
+
+        self.core()
+        jobs = Jobs(self.root)
+        try:
+            catalog = self.create_job(jobs)
+            course = jobs.db.execute(
+                "SELECT course_id FROM results WHERE job_id=? ORDER BY course_id LIMIT 1",
+                (catalog,),
+            ).fetchone()[0]
+            source = self.store.records(self.run, "courses")[course]
+            original = {
+                "model": self.profile.model,
+                "model_revision": self.profile.revision,
+                "task_version": json.loads(self.task.read_text())["version"],
+                "sections": {
+                    "search_profile": {
+                        "status": "valid",
+                        "value": source["description"],
+                    }
+                },
+            }
+            with jobs.db:
+                jobs.db.execute(
+                    "UPDATE jobs SET status='complete' WHERE job_id=?", (catalog,)
+                )
+                jobs.db.execute(
+                    "UPDATE results SET status='complete',output_json=? WHERE job_id=?",
+                    (canonical(original), catalog),
+                )
+            task = json.loads(self.task.read_text())
+            task["workflow"] = "student_summary_v1"
+            self.task.write_text(canonical(task))
+            with (
+                patch("uwcourses.jobs.load_profile", return_value=self.profile),
+                patch("uwcourses.student_context.StudentContext") as context,
+            ):
+                context.return_value.get.side_effect = lambda key: {"course_id": key}
+                student = jobs.create(
+                    self.run,
+                    "unused",
+                    "enrichment",
+                    self.task,
+                    course_ids=[course],
+                    reuse_job_ids=[catalog],
+                )
+            previous = copy.deepcopy(original)
+            previous["sections"]["search_profile"]["value"] = None
+            previous["sections"]["student_summary"] = {
+                "status": "valid",
+                "value": {"text": source["course_title"]},
+            }
+            with jobs.db:
+                jobs.db.execute(
+                    "UPDATE jobs SET status='complete' WHERE job_id=?", (student,)
+                )
+                jobs.db.execute(
+                    "UPDATE results SET status='complete',output_json=? WHERE job_id=?",
+                    (canonical(previous), student),
+                )
+            seed = summary_seeds(jobs, [student, catalog], self.run)[course]
+            self.assertEqual(seed["job_id"], student)
+            self.assertEqual(
+                seed["output"]["sections"]["search_profile"],
+                original["sections"]["search_profile"],
+            )
+            self.assertEqual(
+                seed["output"]["sections"]["student_summary"],
+                previous["sections"]["student_summary"],
+            )
+            origin = seed["section_origins"]["search_profile"]
+            self.assertEqual(origin["job_id"], catalog)
+            self.assertEqual(
+                origin["section_hash"], digest(original["sections"]["search_profile"])
+            )
+            stored = jobs.db.execute(
+                "SELECT output_json FROM results WHERE job_id=? AND course_id=?",
+                (student, course),
+            ).fetchone()[0]
+            self.assertEqual(json.loads(stored), previous)
+        finally:
+            jobs.close()
+
     def test_partial_summary_reuse_freezes_completed_results(self):
         from uwcourses.student_summary import summary_seeds
 
