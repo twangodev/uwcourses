@@ -1,6 +1,6 @@
 # Course search metadata
 
-Write a short, complete summary (preferably under 180 characters), topics, skills,
+Write a short, complete sentence ending in punctuation (aim for under 180 characters), topics, skills,
 assumed background, discovery phrases and activity_tags. Empty arrays are fine;
 return null for this section if both the description and official outcomes are missing.
 

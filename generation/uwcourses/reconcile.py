@@ -159,8 +159,7 @@ def reconcile(store, run):
             details.get("position"),
             details.get("department"),
             details.get("credentials"),
-            details.get("name")
-            or official,
+            details.get("name") or official,
         )
         if identifier not in instructors or (
             rating and not instructors[identifier].rmp_data

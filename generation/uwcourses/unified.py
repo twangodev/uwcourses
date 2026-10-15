@@ -184,7 +184,7 @@ def validate_section(name, candidate, task, root, lookup):
     repairs = []
     if name == "search_profile":
         summary = value["summary"]["text"].rstrip()
-        if summary.endswith((",", ";", ":")):
+        if not summary.rstrip("\"'”’)]}").endswith((".", "!", "?")):
             raise ValueError(
                 "Summary appears clipped; rewrite it as a short complete sentence, never cut a word or end with a comma."
             )

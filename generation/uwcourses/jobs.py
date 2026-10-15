@@ -21,7 +21,7 @@ from .tasks import load_task
 from .store import Store, now
 
 
-WORKER_VERSION = 60
+WORKER_VERSION = 61
 
 
 def generation_schema(schema):
@@ -55,6 +55,9 @@ def generation_schema(schema):
             node.clear()
             node["anyOf"] = [scalar, outcome]
         node.pop("uniqueItems", None)
+        # Let the model finish its text before validating length. A decoder-side
+        # cap can force a closing quote halfway through a word or sentence.
+        node.pop("maxLength", None)
         for key in (
             "properties",
             "$defs",

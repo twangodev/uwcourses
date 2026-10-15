@@ -425,7 +425,9 @@ class UnifiedTests(unittest.TestCase):
             )
         self.assertIn("themes[0].summary", str(failure.exception))
         self.assertIn("subject_instructor_id 'i1'", str(failure.exception))
-        self.assertIn(self.root["reviews"][0]["instructor_name"], str(failure.exception))
+        self.assertIn(
+            self.root["reviews"][0]["instructor_name"], str(failure.exception)
+        )
 
     def test_sentiment_summary_preserves_historical_teacher_scope(self):
         self.root["reviews"] = [
@@ -640,11 +642,61 @@ class UnifiedTests(unittest.TestCase):
         )
 
     def test_clipped_summary_is_rejected(self):
-        self.search["summary"]["text"] = "Genomics applications in microbi,"
-        with self.assertRaisesRegex(ValueError, "clipped"):
+        complete = self.search["summary"]["text"]
+        for text in (complete[:-1], complete[:-3], complete[:-1] + ","):
+            with self.subTest(text=text):
+                self.search["summary"]["text"] = text
+                with self.assertRaisesRegex(ValueError, "clipped"):
+                    validate_section(
+                        "search_profile", self.search, self.task, self.root, self.lookup
+                    )
+
+    def test_text_length_is_validated_after_generation_without_decoder_clipping(self):
+        schema = self.task["schema"]["properties"]["search_profile"]
+        text_schema = schema["properties"]["summary"]["properties"]["text"]
+        limit = text_schema["maxLength"]
+        candidate = copy.deepcopy(self.search)
+        candidate["summary"]["text"] = "x" * limit + "."
+        grammar = generation_schema(schema)
+        jsonschema.validate(candidate, grammar)
+        self.assertEqual(text_schema["maxLength"], limit)
+        with self.assertRaises(jsonschema.ValidationError):
             validate_section(
-                "search_profile", self.search, self.task, self.root, self.lookup
+                "search_profile", candidate, self.task, self.root, self.lookup
             )
+
+    def test_revalidation_targets_incomplete_summaries_without_changing_other_sections(
+        self,
+    ):
+        from uwcourses.repair import revalidate_output
+
+        previous = {
+            "sections": {
+                "search_profile": {
+                    "status": "valid",
+                    "value": copy.deepcopy(self.search),
+                },
+                "requirements": {"status": "valid", "value": self.requirements},
+                "student_experience": {"status": "valid", "value": self.experience},
+            }
+        }
+        original = copy.deepcopy(previous)
+        self.assertEqual(
+            revalidate_output(
+                previous, ["search_profile"], self.task, self.root, self.lookup
+            ),
+            previous,
+        )
+        previous["sections"]["search_profile"]["value"]["summary"]["text"] = (
+            self.search["summary"]["text"][:-2]
+        )
+        result = revalidate_output(
+            previous, ["search_profile"], self.task, self.root, self.lookup
+        )
+        self.assertEqual(result["sections"]["search_profile"]["status"], "invalid")
+        self.assertEqual(previous["sections"]["search_profile"]["status"], "valid")
+        for name in ("requirements", "student_experience"):
+            self.assertEqual(result["sections"][name], original["sections"][name])
 
     def test_none_legacy_ast_agrees_with_empty_graph(self):
         section = {"status": "valid", "value": self.requirements}

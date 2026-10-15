@@ -96,6 +96,12 @@ def parser():
     repair.add_argument("--turns", type=int, default=3)
     repair.add_argument("--prepare-only", action="store_true")
     repair.add_argument(
+        "--revalidate-section",
+        action="append",
+        default=[],
+        help="Recheck an accepted section against current validation before repair",
+    )
+    repair.add_argument(
         "--task", type=Path, help="Updated repair prompt with the same output schema"
     )
     descriptions = {
@@ -386,6 +392,7 @@ def main(argv=None):
                     args.course,
                     args.turns,
                     task_path=args.task,
+                    revalidate_sections=args.revalidate_section,
                 )
                 print(f"Created repair job {job}", flush=True)
                 result = jobs.status(job) if args.prepare_only else jobs.run(job)
