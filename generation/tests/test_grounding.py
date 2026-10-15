@@ -34,7 +34,8 @@ class GroundingEvidenceTests(unittest.TestCase):
         self.assertNotIn("current_instructors", first[1])
         cited = first[1]["claims"][0]["cited_reviews"][0]
         self.assertEqual(cited["instructor"], source["instructor_name"])
-        self.assertEqual(cited["scope"], source["instructor_scope"])
+        self.assertEqual(cited["instructor_scope"], source["instructor_scope"])
+        self.assertNotIn("scope", cited)
         self.assertEqual(cited["comment"], source["comment"])
 
     def test_roster_boilerplate_is_rejected_before_model_grounding(self):

@@ -17,7 +17,7 @@ def grounding_request(task, value, payload):
                         {
                             "review_id": i,
                             "instructor": reviews[i].get("instructor_name"),
-                            "scope": reviews[i].get("instructor_scope"),
+                            "instructor_scope": reviews[i].get("instructor_scope"),
                             "date": reviews[i].get("date"),
                             "comment": reviews[i]["comment"],
                             "difficulty_rating": reviews[i].get("difficulty_rating"),
@@ -37,5 +37,6 @@ def grounding_request(task, value, payload):
         "course_id": payload["course_id"],
         "mode": payload["mode"],
         "snapshot_term": payload.get("term_name", payload["term_id"]),
+        "review_evidence_scope": "past_experience_only",
         "claims": claims,
     }

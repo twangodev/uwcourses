@@ -67,6 +67,7 @@ export const claimSchema = named(
   "Claim",
   extensible({
     text: z.string(),
+    evidence_scope: z.literal("past_student_reviews").optional(),
     citations: z.array(citationSchema).optional(),
     evidence: z.array(courseEvidenceSchema).optional(),
   }),

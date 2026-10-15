@@ -1,6 +1,6 @@
 {
   "name": "student_summary",
-  "version": 16,
+  "version": 17,
   "workflow": "student_summary_v1",
   "validator": "student_claims_v1",
   "prompt_files": [

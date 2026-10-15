@@ -11,7 +11,6 @@ from uwcourses.student_context import (
 )
 from uwcourses.student_summary import (
     generate_student,
-    historical_review_text,
     validate_claims,
 )
 
@@ -45,41 +44,6 @@ def review(id, instructor):
 
 
 class StudentSummaryTests(unittest.TestCase):
-    def test_historical_prose_keeps_natural_scope_and_adds_missing_attribution(self):
-        for text in [
-            "In past reviews, Jane Doe was praised for clear explanations.",
-            "Earlier reviews describe a demanding workload.",
-            "Students in Jane Doe's previous classes reported weekly essays.",
-            "Historical reviewers praised the projects.",
-            "A past student noted that the final project was an essay.",
-            "A former student reported a demanding workload.",
-        ]:
-            with self.subTest(text=text):
-                self.assertEqual(historical_review_text(text, "Jane Doe"), text)
-        self.assertEqual(
-            historical_review_text(
-                "Reviewers praised Jane Doe's clear lectures.", "Jane Doe"
-            ),
-            "Past reviews of Jane Doe: Reviewers praised Jane Doe's clear lectures.",
-        )
-        self.assertTrue(
-            historical_review_text(
-                "A previous homework problem was difficult.", "Jane Doe"
-            ).startswith("Past reviews of Jane Doe:")
-        )
-
-    def test_historical_scope_can_be_added_to_individual_opinions_without_a_label(self):
-        self.assertEqual(
-            historical_review_text(
-                "One student found the course straightforward.", "Jane Doe"
-            ),
-            "A past student found the course straightforward.",
-        )
-        self.assertEqual(
-            historical_review_text("One reviewer praised the projects.", "Jane Doe"),
-            "A past reviewer praised the projects.",
-        )
-
     def test_past_only_reviews_generate_one_preview_and_preserve_citations(self):
         calls = []
         historical = review("old-review", "Former Instructor")
@@ -114,7 +78,7 @@ class StudentSummaryTests(unittest.TestCase):
             return {
                 "quick_take": [
                     {
-                        "text": "Past reviews of Former Instructor describe clear lectures.",
+                        "text": historical["comment"],
                         "review_ids": ["review:1"],
                     }
                 ],
@@ -136,7 +100,10 @@ class StudentSummaryTests(unittest.TestCase):
         )
         self.assertEqual(
             value["quick_take"][0]["text"],
-            "Past reviews of Former Instructor describe clear lectures.",
+            historical["comment"],
+        )
+        self.assertEqual(
+            value["quick_take"][0]["evidence_scope"], "past_student_reviews"
         )
         citation = value["quick_take"][0]["citations"][0]
         self.assertEqual(citation["source_review_id"], "old-review")
@@ -423,6 +390,17 @@ class StudentSummaryTests(unittest.TestCase):
         teaching = section["value"]["teaching_history"][0]
         self.assertIn("Jane Doe is recorded teaching in 1.", teaching["text"])
         self.assertEqual(teaching["citations"], [grade("1", 1, 1)["citation"]])
+        value = section["value"]
+        for claims in (
+            value["quick_take"],
+            value["historical_context"],
+            *(person["summary"] for person in value["current_instructors"]),
+        ):
+            for claim in claims:
+                if all(c["type"] == "review" for c in claim["citations"]):
+                    self.assertEqual(claim["evidence_scope"], "past_student_reviews")
+                else:
+                    self.assertNotIn("evidence_scope", claim)
         current = section["value"]["current_instructors"]
         self.assertEqual(current[1]["review_status"], "no_course_reviews")
         self.assertEqual(

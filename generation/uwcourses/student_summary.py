@@ -116,23 +116,6 @@ def contains_inline_review_handle(text):
     return bool(re.search(r"\breview:\d+\b", text, re.I))
 
 
-def historical_review_text(text, names):
-    """Preserve clear past-review attribution without repeating it as a prefix."""
-    if re.search(
-        r"\bhistorical\b|\bpast (?:students?|reviewers?|reviews?|reports?|feedback|class(?:es)?|experiences?)\b"
-        r"|\bformer (?:students?|reviewers?)\b"
-        r"|\b(?:earlier|previous) (?:reviews?|reports?|class(?:es)?|offerings?)\b",
-        text,
-        re.I,
-    ):
-        return text
-    natural = re.sub(r"^One (student|reviewer)\b", r"A past \1", text, flags=re.I)
-    if natural != text:
-        return natural
-    label = f"Past reviews of {names}" if names and len(names) < 80 else "Past reviews"
-    return label + ": " + text
-
-
 def validate_claims(value, payload):
     reviews = {r["citation_id"]: r for r in payload["reviews"]}
     # Hard rejection ceilings allow modest room beyond the prompt's concise targets.
@@ -477,20 +460,7 @@ def generate_student(profile, task, payload, generate=None):
                         }
                         for i in handles
                     ]
-                    if mode == "history" or all(
-                        evidence[i].get("instructor_scope") == "historical"
-                        for i in handles
-                    ):
-                        names = ", ".join(
-                            sorted(
-                                {
-                                    evidence[i]["instructor_name"]
-                                    for i in handles
-                                    if evidence[i].get("instructor_name")
-                                }
-                            )
-                        )
-                        claim["text"] = historical_review_text(claim["text"], names)
+                    claim["evidence_scope"] = "past_student_reviews"
             return {
                 k: result[k]
                 for k in (
@@ -569,7 +539,7 @@ def generate_student(profile, task, payload, generate=None):
         "student_experience": [],
     }
     value = {
-        "version": 2,
+        "version": 3,
         "context_hash": digest(source),
         "task_hash": digest(task),
         "profile_hash": profile_identity(profile),

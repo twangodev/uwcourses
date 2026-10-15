@@ -21,14 +21,16 @@ by that claim's own cited comments. Other reviews cannot support uncited details
 Check instructor attribution against review metadata. Put supplied handles in
 review_ids, never in prose.
 
-Attribute opinions and retain disagreement; do not invent consensus, rankings or
-causal claims. Keep details relevant to taking the class. Qualitative reports of
-hard exams or lenient grading are useful when supported.
+Use past tense for review-based teaching, workload and assessment details, including
+reviews of currently listed instructors. Attribute opinions naturally and retain
+disagreement; do not invent consensus, rankings or causal claims. Keep details
+relevant to taking the class. Qualitative reports of hard exams or lenient grading
+are useful when supported.
 
-Prioritize current instructors. For historical feedback, use natural past-review
-wording and name instructors whose teaching you discuss. Historical does not mean
-retired. Past policies are not current guarantees. Teaching records are context,
-not a future rotation; do not infer teaching terms from review dates.
+Prioritize current instructors. Name instructors whose teaching you discuss.
+Historical means outside the current roster, not retired. Teaching records do not
+establish a future rotation; do not infer teaching terms from review dates.
 
-Runtime supplies review dates and recorded grade statistics. Do not generate calendar
+Runtime labels all review claims as past student feedback and supplies review dates
+and recorded grade statistics. Do not generate calendar
 years, numerical grade claims or inferences of ease from grades. Write complete sentences.
