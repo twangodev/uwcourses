@@ -6,12 +6,14 @@ No shell is involved; a failed import/verification never proceeds to deployment.
 
 from dataclasses import dataclass
 from datetime import datetime, timezone
+import hashlib
 import json
 import os
 from pathlib import Path
 import re
 import subprocess
 import sys
+from tempfile import TemporaryDirectory
 import time
 from uuid import uuid4
 from typing import Any
@@ -102,6 +104,49 @@ def import_part(config: Path, part: Path) -> None:
                 flush=True,
             )
             time.sleep(delay)
+
+
+def import_receipted_part(config: Path, part: Path) -> None:
+    """Confirm an ambiguous response using a marker executed after this file."""
+    content = part.read_bytes()
+    key = "import-part:" + hashlib.sha256(content).hexdigest()
+    token = uuid4().hex
+    with TemporaryDirectory(prefix="uwcourses-import-") as directory:
+        marked = Path(directory) / part.name
+        marked.write_bytes(
+            content
+            + f"\nINSERT OR REPLACE INTO metadata VALUES('{key}','{token}');\n".encode()
+        )
+        try:
+            import_part(config, marked)
+        except subprocess.CalledProcessError:
+            try:
+                output = wrangler(
+                    config,
+                    "d1",
+                    "execute",
+                    "DB",
+                    "--remote",
+                    "--json",
+                    "--command",
+                    f"SELECT value FROM metadata WHERE key='{key}'",
+                    capture=True,
+                )
+                result = json.loads(output)[0]
+                if result.get("success") is True and result.get("results") == [
+                    {"value": token}
+                ]:
+                    print(
+                        f"D1 verified completion of {part.name} after a lost response",
+                        flush=True,
+                    )
+                    return
+            except Exception as verification:
+                print(
+                    f"Import receipt verification failed: {verification}",
+                    file=sys.stderr,
+                )
+            raise
 
 
 def verify_database(output: str, release: Release) -> Any:
@@ -287,7 +332,7 @@ def deploy(config: Path, site: Path, first: bool = False) -> None:
         )
         for index, part in enumerate(parts):
             try:
-                import_part(config, part)
+                import_receipted_part(config, part)
             except subprocess.CalledProcessError as failure:
                 output = (failure.stdout or "") + (failure.stderr or "")
                 if (

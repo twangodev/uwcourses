@@ -15,6 +15,7 @@ from uwcourses_site.deployment import (
     worker_state,
     current_commit,
     import_part,
+    import_receipted_part,
     published_database,
     restore_readiness,
     wrangler,
@@ -270,6 +271,70 @@ class DeploymentTests(unittest.TestCase):
 
     def test_import_failure_stops_publish(self):
         self.run_deploy(failure="import")
+
+    def test_import_receipt_requires_this_attempt_to_reach_the_end_of_the_file(self):
+        for completion in ("committed", "partial", "old_receipt", "unreadable"):
+            with self.subTest(completion=completion), TemporaryDirectory() as directory:
+                root = Path(directory)
+                source = root / "part.sql"
+                original = (
+                    "CREATE TABLE IF NOT EXISTS metadata(key TEXT PRIMARY KEY,value TEXT);\n"
+                    "CREATE TABLE IF NOT EXISTS imported(value TEXT);\n"
+                    "INSERT INTO imported VALUES('source data');\n"
+                )
+                source.write_text(original)
+                db = sqlite3.connect(":memory:")
+                db.row_factory = sqlite3.Row
+                failure = subprocess.CalledProcessError(
+                    1, ["wrangler"], stderr="Not currently importing anything."
+                )
+                writes = []
+                seed_old_receipt = completion == "old_receipt"
+
+                def command(config, *args, **kwargs):
+                    nonlocal seed_old_receipt
+                    if "--file" in args:
+                        content = Path(args[-1]).read_text()
+                        self.assertTrue(content.startswith(original))
+                        writes.append(content)
+                        if seed_old_receipt:
+                            db.executescript(content)
+                            seed_old_receipt = False
+                            return ""
+                        if completion == "committed":
+                            db.executescript(content)
+                        elif completion in ("partial", "unreadable"):
+                            db.executescript(original)
+                        raise failure
+                    self.assertTrue(kwargs.get("capture"))
+                    if completion == "unreadable":
+                        raise RuntimeError("Database unavailable")
+                    rows = [dict(row) for row in db.execute(args[-1])]
+                    return json.dumps([{"success": True, "results": rows}])
+
+                try:
+                    with patch(
+                        "uwcourses_site.deployment.wrangler", side_effect=command
+                    ):
+                        if completion == "old_receipt":
+                            import_receipted_part(root / "wrangler.json", source)
+                        if completion == "committed":
+                            import_receipted_part(root / "wrangler.json", source)
+                        else:
+                            with self.assertRaises(
+                                subprocess.CalledProcessError
+                            ) as caught:
+                                import_receipted_part(root / "wrangler.json", source)
+                            self.assertIs(caught.exception, failure)
+                    self.assertEqual(
+                        len(writes), 2 if completion == "old_receipt" else 1
+                    )
+                    self.assertEqual(source.read_text(), original)
+                    self.assertEqual(
+                        db.execute("SELECT count(*) FROM imported").fetchone()[0], 1
+                    )
+                finally:
+                    db.close()
 
     def test_final_poll_failure_publishes_only_a_verified_completed_release(self):
         self.run_deploy(failure="poll", failed_part=2, completion=True)
