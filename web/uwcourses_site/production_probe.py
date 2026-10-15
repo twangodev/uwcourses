@@ -4,6 +4,7 @@ from contextlib import contextmanager
 import json
 from pathlib import Path
 import re
+import subprocess
 import time
 from tempfile import TemporaryDirectory
 from uuid import uuid4
@@ -60,7 +61,17 @@ def production_probe(config: Path, origin: str):
             )
         )
         try:
-            output = wrangler(probe_config, "deploy", capture=True)
+            for attempt in range(3):
+                try:
+                    output = wrangler(probe_config, "deploy", capture=True)
+                    break
+                except subprocess.CalledProcessError:
+                    if attempt == 2:
+                        raise
+                    # Creating this same temporary Worker is idempotent. Its
+                    # upload can finish before the subdomain API sees it.
+                    print("Retrying temporary verification Worker setup", flush=True)
+                    time.sleep((2, 5)[attempt])
             urls = re.findall(r"https://[a-zA-Z0-9.-]+\.workers\.dev", output)
             if len(urls) != 1:
                 raise ValueError("Temporary production probe URL unavailable")

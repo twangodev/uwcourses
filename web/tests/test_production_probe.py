@@ -1,4 +1,5 @@
 import json
+import subprocess
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
@@ -10,6 +11,53 @@ from uwcourses_site.production_probe import production_probe
 
 
 class ProductionProbeTests(unittest.TestCase):
+    @patch("uwcourses_site.production_probe.time.sleep")
+    def test_probe_setup_retries_are_bounded_and_keep_the_same_resource(self, sleep):
+        for failures in (1, 3):
+            with self.subTest(failures=failures), TemporaryDirectory() as directory:
+                config = Path(directory) / "wrangler.json"
+                config.write_text(
+                    json.dumps({"name": "site", "compatibility_date": "2026-09-08"})
+                )
+                failure = subprocess.CalledProcessError(
+                    1, ["wrangler"], stderr="Temporary Worker unavailable"
+                )
+                settings, actions = [], []
+
+                def command(path, action, *args, **kwargs):
+                    settings.append(json.loads(path.read_text()))
+                    actions.append(action)
+                    if action == "deploy" and actions.count("deploy") <= failures:
+                        raise failure
+                    return "Deployed https://probe.example.workers.dev"
+
+                with (
+                    patch(
+                        "uwcourses_site.production_probe.wrangler", side_effect=command
+                    ),
+                    patch(
+                        "uwcourses_site.production_probe.probe_json", return_value={}
+                    ),
+                ):
+                    if failures == 3:
+                        with self.assertRaises(subprocess.CalledProcessError) as caught:
+                            with production_probe(config, "https://example.org"):
+                                self.fail("An unverified probe must not be used")
+                        self.assertIs(caught.exception, failure)
+                    else:
+                        with production_probe(config, "https://example.org") as (
+                            base,
+                            headers,
+                        ):
+                            self.assertEqual(base, "https://probe.example.workers.dev")
+                            self.assertEqual(
+                                headers["X-Search-Probe"],
+                                settings[0]["vars"]["PROBE_TOKEN"],
+                            )
+                self.assertTrue(all(value == settings[0] for value in settings))
+                self.assertEqual(actions[-1], "delete")
+                self.assertEqual(actions.count("deploy"), min(failures + 1, 3))
+
     def exercise(self, failure=None):
         with TemporaryDirectory() as directory:
             config = Path(directory) / "wrangler.json"
