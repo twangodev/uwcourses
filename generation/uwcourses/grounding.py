@@ -37,6 +37,5 @@ def grounding_request(task, value, payload):
         "course_id": payload["course_id"],
         "mode": payload["mode"],
         "snapshot_term": payload.get("term_name", payload["term_id"]),
-        "current_instructors": payload.get("current_instructors", []),
         "claims": claims,
     }

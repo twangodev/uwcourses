@@ -1,6 +1,6 @@
 {
   "name": "review_grounding",
-  "version": 5,
+  "version": 6,
   "prompt_files": [
     "../prompts/review_grounding.md"
   ],

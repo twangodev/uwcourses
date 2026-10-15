@@ -104,6 +104,14 @@ def describes_review_availability(text):
     )
 
 
+def describes_current_roster(text):
+    return bool(
+        re.search(
+            r"\bcurrent (?:instructors?|professors?|teachers?|roster)\b", text, re.I
+        )
+    )
+
+
 def contains_inline_review_handle(text):
     return bool(re.search(r"\breview:\d+\b", text, re.I))
 
@@ -162,6 +170,10 @@ def validate_claims(value, payload):
             if describes_review_availability(normalized):
                 raise ValueError(
                     "Do not describe review availability in a cited claim; runtime supplies availability separately. Summarize the supplied reviews instead."
+                )
+            if describes_current_roster(normalized):
+                raise ValueError(
+                    "Do not describe the current roster in a review claim; runtime supplies assigned instructors separately. Keep only the supported review experience."
                 )
             # Variation describes disagreement, not population-wide consensus.
             consensus_text = re.sub(
