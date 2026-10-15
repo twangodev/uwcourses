@@ -184,9 +184,20 @@ class UnifiedTests(unittest.TestCase):
             with self.subTest(field=field):
                 old = citation[field]
                 citation[field] = bad
-                with self.assertRaises(ValueError):
+                with self.assertRaises(ValueError) as failure:
                     validate_section(
                         "search_profile", self.search, self.task, self.root, self.lookup
+                    )
+                if field == "quote":
+                    message = str(failure.exception)
+                    outcome = self.root["official_learning_outcomes"][
+                        citation["outcome_index"]
+                    ]
+                    self.assertIn(repr(bad), message)
+                    self.assertIn(repr(outcome["text"]), message)
+                    self.assertIn(
+                        f"official_learning_outcomes[{citation['outcome_index']}]",
+                        message,
                     )
                 citation[field] = old
 

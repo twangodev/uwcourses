@@ -38,7 +38,10 @@ def outcome_quote(citation, course):
     quote = citation["quote"]
     if not quote.strip() or quote not in outcome["text"]:
         raise ValueError(
-            "Outcome evidence requires an exact substring of the selected official outcome"
+            "Outcome evidence requires an exact substring of the selected official outcome; "
+            f"{citation['course_id']}.official_learning_outcomes[{index}] "
+            f"received {quote!r}; selected source text is {outcome['text']!r}. "
+            "Copy a short excerpt verbatim, preserving punctuation and quotation marks."
         )
     return quote
 
