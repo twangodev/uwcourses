@@ -35,7 +35,7 @@
         </div>
         <Badges badges={c.badges || []} />
         {#if c.description}<p
-            class="overflow-hidden max-w-[75ch] mt-3.5 mb-0 text-muted text-[14px] font-normal leading-[1.65] course-description mx-0"
+            class="max-w-[75ch] mt-3.5 mb-0 text-muted text-[14px] font-normal leading-[1.65] course-description mx-0"
           >
             {c.description}
           </p>{/if}
@@ -113,7 +113,7 @@
           class="course-title"
           title={c.title}
           >{courseTitle(c.title)}{#if c.description}<span
-              class="overflow-hidden max-w-[75ch] mt-3.5 mb-0 text-muted text-[14px] font-normal leading-[1.65] course-description mx-0"
+              class="max-w-[75ch] mt-3.5 mb-0 text-muted text-[14px] font-normal leading-[1.65] course-description mx-0"
               >{c.description}</span
             >{/if}</span
         ><span class="muted mono"
@@ -128,12 +128,6 @@
 </div>
 
 <style>
-  .course-description {
-    display: -webkit-box;
-    -webkit-line-clamp: 3;
-    line-clamp: 3;
-    -webkit-box-orient: vertical;
-  }
   @media (max-width: 600px) {
     .card-bottom {
       align-items: start;
