@@ -28,6 +28,7 @@ from .buildings import (
     building_observations,
 )
 from .dataset_shape import (
+    schedule_runs,
     SCHEMAS as SHAPE_SCHEMAS,
     DESCRIPTIONS as SHAPE_DESCRIPTIONS,
     write_shape,
@@ -145,7 +146,7 @@ DESCRIPTIONS = {
     "courses_history": "One row per observed course per source run, with directly readable catalog fields. This is observation history, not inferred validity intervals or one row per semester. record_version_id links to the complete archival record.",
     "catalog_versions": "Distinct catalog projections: course identity, subjects, number, title, description, source requirement text, and official outcome text. Outcome observation metadata is retained but does not change this ID. Parsed trees, grades, similar courses and term activity do not change this ID. Original full records remain in the archive.",
     "grades_latest": "One row per course and grading term, choosing the latest observed distribution across included snapshots (observed_at, run_id). semester is the observation semester; term_id is the grading semester. Counts are not duplicated for repeated scrapes. Cross-listed course aliases may still overlap; do not interpret a sum across courses as distinct students. Missing counts remain null.",
-    "offerings_current": "One row per enrollment offering in the selected source snapshot. Unmatched course_id stays null. This is a schedule snapshot, not live enrollment availability.",
+    "offerings_current": "One row per enrollment offering in the latest snapshot per semester as of the selected release. Unmatched course_id stays null. This is a schedule snapshot, not live enrollment availability.",
 }
 
 
@@ -580,12 +581,15 @@ def write_public(database, destination, release_id, source_run, registry_path=No
         )
         offers = []
         by_course = defaultdict(list)
+        selected_runs = schedule_runs(db, runs, source_run)
+        placeholders = ",".join("?" for _ in selected_runs)
         for row in db.execute(
-            "SELECT * FROM offerings WHERE run_id=? ORDER BY offering_id", (source_run,)
+            f"SELECT * FROM offerings WHERE run_id IN ({placeholders}) ORDER BY run_id,offering_id",
+            selected_runs,
         ):
             detail = json.loads(row["details_json"])
             value = {
-                **observation(source_run),
+                **observation(row["run_id"]),
                 **{
                     k: row[k]
                     for k in (
@@ -603,7 +607,7 @@ def write_public(database, destination, release_id, source_run, registry_path=No
                 "typically_offered": detail.get("typicallyOffered"),
             }
             offers.append(value)
-            if row["course_id"] is not None:
+            if row["course_id"] is not None and row["run_id"] == source_run:
                 by_course[row["course_id"]].append(value)
         counts["offerings_current"] = write_rows(
             directory / "offerings_current.parquet",

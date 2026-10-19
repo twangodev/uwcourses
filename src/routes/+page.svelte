@@ -80,6 +80,9 @@
           >{/each}
       </div>
     </div>
+    {#if activity && !activity.day}
+      <span>Schedule unavailable for today</span>
+    {/if}
     {#if hasOfficialBuildings}<a href="https://map.wisc.edu/buildings/"
         >Buildings: UW campus map</a
       >{/if}

@@ -375,6 +375,12 @@ credits are nullable numbers, and observation times are UTC timestamps. Flexible
 requirement ASTs remain JSON. `public/schema.json` describes each row and column.
 The archive remains available under `archive_*` HF configurations.
 
+Schedule tables retain the latest completed course snapshot per semester as of
+the selected release. Offerings, sections, instructors and meetings use the same
+snapshot for each semester, preserving current schedules when a future semester
+is published. A refreshed semester replaces its older schedule, including canceled
+meetings. Row-level run IDs and observation times retain source provenance.
+
 Catalog IDs hash identity, title, description and original requirement text;
 changes to grades, term activity or parser output do not create catalog versions.
 Full-record IDs still link to the complete archive. `grades_latest` selects one

@@ -148,10 +148,10 @@ DESCRIPTIONS = {
     "course_observations": "Normalized observation-to-version links. semester labels the scrape context; observed_at is observation time, not a validity interval.",
     "instructors": "Latest observed instructor labels, with stable source-scoped IDs. Madgrades IDs and UW netids are not merged by name. name_only identities are unresolved labels, not verified unique people.",
     "instructor_aliases": "Names observed for source-scoped instructor identities. Legacy name-derived IDs are retained as unresolved identities.",
-    "sections_current": "One row per enrollment term/class number in the selected snapshot. If a class number is unavailable, identity stays scoped to its offering and section. Join offerings through offering_sections; cross-listings do not duplicate the class.",
+    "sections_current": "One row per enrollment term/class number in the latest snapshot per semester as of the selected release. If a class number is unavailable, identity stays scoped to its offering and section. Join offerings through offering_sections; cross-listings do not duplicate the class.",
     "offering_sections": "Many-to-many offering/class links. A cross-listed class may belong to several catalog offerings.",
     "section_instructors_current": "Instructors explicitly reported for each enrollment class. These links do not infer equivalence with Madgrades identities.",
-    "meetings_current": "Expanded meeting occurrences from the selected snapshot, with UTC timestamps. Instructor names are source labels; no identity is inferred from these names.",
+    "meetings_current": "Expanded meeting occurrences from the latest snapshot per semester as of the selected release, with UTC timestamps. Instructor names are source labels; no identity is inferred from these names.",
     "section_grades_latest": "One latest observed Madgrades distribution per source course UUID, term, and section number. Course matches use snapshot-local aliases; unresolved matches stay null. Unnumbered legacy sections remain in archive observations. Zero and missing counts stay distinct. Do not sum course aggregates with section counts.",
     "grade_section_instructors": "Instructors reported for the corresponding latest grade section. Co-teachers share one distribution; joining this table can duplicate counts, and does not attribute individual students to a teacher.",
     "llm_results": "Version-bound section outputs including rejected candidates and status. All archived jobs are retained; selected_for_release marks explicitly selected jobs, not necessarily the newest result. Full conversations remain in llm_traces.",
@@ -274,6 +274,26 @@ class ShapeRows:
         self.path.unlink(missing_ok=True)
 
 
+def schedule_runs(db, runs, source_run):
+    """Latest complete course snapshot per semester, as of the selected release.
+
+    Archives contain completed snapshots. Auxiliary runs cannot replace course
+    snapshots. Select whole snapshots so canceled meetings do not survive.
+    """
+    cutoff = (runs[source_run]["observed_at"], source_run)
+    selected = {}
+    for row in db.execute("SELECT DISTINCT run_id FROM course_snapshots"):
+        run = row["run_id"]
+        info = runs[run]
+        order = (info["observed_at"], run)
+        if order > cutoff:
+            continue
+        term = info["semester"]
+        if term not in selected or order > selected[term][0]:
+            selected[term] = (order, run)
+    return sorted(value[1] for value in selected.values())
+
+
 def write_shape(db, directory, runs, source_run, identities):
     from .public_data import catalog_record
 
@@ -355,12 +375,17 @@ def write_shape(db, directory, runs, source_run, identities):
                 legacy=row["instructor_id"],
             )
 
-        obs = {"run_id": source_run, "observed_at": runs[source_run]["observed_at"]}
+        selected_runs = schedule_runs(db, runs, source_run)
+        placeholders = ",".join("?" for _ in selected_runs)
         for row in db.execute(
-            """SELECT s.*,o.term_id,o.course_id FROM sections s
-            JOIN offerings o USING(run_id,offering_id) WHERE s.run_id=? ORDER BY s.offering_id,s.section_id""",
-            (source_run,),
+            f"""SELECT s.*,o.term_id,o.course_id FROM sections s
+            JOIN offerings o USING(run_id,offering_id) WHERE s.run_id IN ({placeholders}) ORDER BY s.run_id,s.offering_id,s.section_id""",
+            selected_runs,
         ):
+            obs = {
+                "run_id": row["run_id"],
+                "observed_at": runs[row["run_id"]]["observed_at"],
+            }
             detail = json.loads(row["details_json"])
             class_number = (detail.get("classUniqueId") or {}).get("classNumber")
             section_uid = (
@@ -395,7 +420,7 @@ def write_shape(db, directory, runs, source_run, identities):
             )
             shape.add(
                 "offering_sections",
-                [row["offering_id"], section_uid],
+                [row["run_id"], row["offering_id"], section_uid],
                 {
                     **obs,
                     "offering_id": row["offering_id"],
@@ -421,15 +446,19 @@ def write_shape(db, directory, runs, source_run, identities):
                     {**obs, "section_uid": section_uid, "instructor_uid": uid},
                 )
         for row in db.execute(
-            "SELECT * FROM meetings WHERE run_id=? ORDER BY course_id,meeting_id",
-            (source_run,),
+            f"SELECT * FROM meetings WHERE run_id IN ({placeholders}) ORDER BY run_id,course_id,meeting_id",
+            selected_runs,
         ):
             detail = json.loads(row["details_json"])
+            obs = {
+                "run_id": row["run_id"],
+                "observed_at": runs[row["run_id"]]["observed_at"],
+            }
             location = detail.get("location") or {}
             coordinates = location.get("coordinates") or [None, None]
             shape.add(
                 "meetings_current",
-                [row["course_id"], row["meeting_id"]],
+                [row["run_id"], row["course_id"], row["meeting_id"]],
                 {
                     **obs,
                     "meeting_id": row["meeting_id"],
