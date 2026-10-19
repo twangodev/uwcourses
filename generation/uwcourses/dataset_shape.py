@@ -294,6 +294,112 @@ def schedule_runs(db, runs, source_run):
     return sorted(value[1] for value in selected.values())
 
 
+def write_schedule(shape, db, runs, source_run, identities):
+    """Project schedule rows without rebuilding unrelated release data."""
+    selected_runs = schedule_runs(db, runs, source_run)
+    placeholders = ",".join("?" for _ in selected_runs)
+    for row in db.execute(
+        f"""SELECT s.*,o.term_id,o.course_id FROM sections s
+        JOIN offerings o USING(run_id,offering_id) WHERE s.run_id IN ({placeholders}) ORDER BY s.run_id,s.offering_id,s.section_id""",
+        selected_runs,
+    ):
+        obs = {
+            "run_id": row["run_id"],
+            "observed_at": runs[row["run_id"]]["observed_at"],
+        }
+        detail = json.loads(row["details_json"])
+        class_number = (detail.get("classUniqueId") or {}).get("classNumber")
+        section_uid = (
+            f"uw-section:{row['term_id']}:{class_number}"
+            if class_number is not None
+            else "uw-section_"
+            + digest([row["term_id"], row["offering_id"], row["section_id"]])[:24]
+        )
+        enrollment = detail.get("enrollmentStatus") or {}
+        shape.add(
+            "sections_current",
+            section_uid,
+            {
+                **obs,
+                "section_uid": section_uid,
+                "term_id": row["term_id"],
+                "source_section_id": str(class_number)
+                if class_number is not None
+                else None,
+                "identity_basis": "class_number"
+                if class_number is not None
+                else "offering_section",
+                "section_number": row["section_number"],
+                "section_type": row["section_type"],
+                "instruction_mode": detail.get("instructionMode"),
+                "capacity": enrollment.get("capacity"),
+                "enrolled": enrollment.get("currentlyEnrolled"),
+                "waitlisted": enrollment.get("waitlistCurrentSize"),
+                "start_date": instant(detail.get("startDate")),
+                "end_date": instant(detail.get("endDate")),
+            },
+        )
+        shape.add(
+            "offering_sections",
+            [row["run_id"], row["offering_id"], section_uid],
+            {
+                **obs,
+                "offering_id": row["offering_id"],
+                "section_uid": section_uid,
+                "course_uid": identities.get(row["course_id"]),
+            },
+        )
+        for person in detail.get("instructors", []):
+            name = person.get("name") or {}
+            name = (
+                " ".join(
+                    str(name.get(part) or "").strip() for part in ["first", "last"]
+                ).strip()
+                if isinstance(name, dict)
+                else str(name)
+            )
+            uid = shape.instructor(
+                "enrollment", {**person, "name": name}, [section_uid, name], obs
+            )
+            shape.add(
+                "section_instructors_current",
+                [section_uid, uid],
+                {**obs, "section_uid": section_uid, "instructor_uid": uid},
+            )
+    for row in db.execute(
+        f"SELECT * FROM meetings WHERE run_id IN ({placeholders}) ORDER BY run_id,course_id,meeting_id",
+        selected_runs,
+    ):
+        detail = json.loads(row["details_json"])
+        obs = {
+            "run_id": row["run_id"],
+            "observed_at": runs[row["run_id"]]["observed_at"],
+        }
+        location = detail.get("location") or {}
+        coordinates = location.get("coordinates") or [None, None]
+        shape.add(
+            "meetings_current",
+            [row["run_id"], row["course_id"], row["meeting_id"]],
+            {
+                **obs,
+                "meeting_id": row["meeting_id"],
+                "course_uid": identities[row["course_id"]],
+                "course_id": row["course_id"],
+                "name": detail.get("name"),
+                "meeting_type": detail.get("type"),
+                "starts_at": instant(row["start_time"]),
+                "ends_at": instant(row["end_time"]),
+                "building": location.get("building"),
+                "room": str(location["room"])
+                if location.get("room") is not None
+                else None,
+                "latitude": coordinates[0],
+                "longitude": coordinates[1],
+                "instructor_names": detail.get("instructors") or [],
+            },
+        )
+
+
 def write_shape(db, directory, runs, source_run, identities):
     from .public_data import catalog_record
 
@@ -375,108 +481,7 @@ def write_shape(db, directory, runs, source_run, identities):
                 legacy=row["instructor_id"],
             )
 
-        selected_runs = schedule_runs(db, runs, source_run)
-        placeholders = ",".join("?" for _ in selected_runs)
-        for row in db.execute(
-            f"""SELECT s.*,o.term_id,o.course_id FROM sections s
-            JOIN offerings o USING(run_id,offering_id) WHERE s.run_id IN ({placeholders}) ORDER BY s.run_id,s.offering_id,s.section_id""",
-            selected_runs,
-        ):
-            obs = {
-                "run_id": row["run_id"],
-                "observed_at": runs[row["run_id"]]["observed_at"],
-            }
-            detail = json.loads(row["details_json"])
-            class_number = (detail.get("classUniqueId") or {}).get("classNumber")
-            section_uid = (
-                f"uw-section:{row['term_id']}:{class_number}"
-                if class_number is not None
-                else "uw-section_"
-                + digest([row["term_id"], row["offering_id"], row["section_id"]])[:24]
-            )
-            enrollment = detail.get("enrollmentStatus") or {}
-            shape.add(
-                "sections_current",
-                section_uid,
-                {
-                    **obs,
-                    "section_uid": section_uid,
-                    "term_id": row["term_id"],
-                    "source_section_id": str(class_number)
-                    if class_number is not None
-                    else None,
-                    "identity_basis": "class_number"
-                    if class_number is not None
-                    else "offering_section",
-                    "section_number": row["section_number"],
-                    "section_type": row["section_type"],
-                    "instruction_mode": detail.get("instructionMode"),
-                    "capacity": enrollment.get("capacity"),
-                    "enrolled": enrollment.get("currentlyEnrolled"),
-                    "waitlisted": enrollment.get("waitlistCurrentSize"),
-                    "start_date": instant(detail.get("startDate")),
-                    "end_date": instant(detail.get("endDate")),
-                },
-            )
-            shape.add(
-                "offering_sections",
-                [row["run_id"], row["offering_id"], section_uid],
-                {
-                    **obs,
-                    "offering_id": row["offering_id"],
-                    "section_uid": section_uid,
-                    "course_uid": identities.get(row["course_id"]),
-                },
-            )
-            for person in detail.get("instructors", []):
-                name = person.get("name") or {}
-                name = (
-                    " ".join(
-                        str(name.get(part) or "").strip() for part in ["first", "last"]
-                    ).strip()
-                    if isinstance(name, dict)
-                    else str(name)
-                )
-                uid = shape.instructor(
-                    "enrollment", {**person, "name": name}, [section_uid, name], obs
-                )
-                shape.add(
-                    "section_instructors_current",
-                    [section_uid, uid],
-                    {**obs, "section_uid": section_uid, "instructor_uid": uid},
-                )
-        for row in db.execute(
-            f"SELECT * FROM meetings WHERE run_id IN ({placeholders}) ORDER BY run_id,course_id,meeting_id",
-            selected_runs,
-        ):
-            detail = json.loads(row["details_json"])
-            obs = {
-                "run_id": row["run_id"],
-                "observed_at": runs[row["run_id"]]["observed_at"],
-            }
-            location = detail.get("location") or {}
-            coordinates = location.get("coordinates") or [None, None]
-            shape.add(
-                "meetings_current",
-                [row["run_id"], row["course_id"], row["meeting_id"]],
-                {
-                    **obs,
-                    "meeting_id": row["meeting_id"],
-                    "course_uid": identities[row["course_id"]],
-                    "course_id": row["course_id"],
-                    "name": detail.get("name"),
-                    "meeting_type": detail.get("type"),
-                    "starts_at": instant(row["start_time"]),
-                    "ends_at": instant(row["end_time"]),
-                    "building": location.get("building"),
-                    "room": str(location["room"])
-                    if location.get("room") is not None
-                    else None,
-                    "latitude": coordinates[0],
-                    "longitude": coordinates[1],
-                    "instructor_names": detail.get("instructors") or [],
-                },
-            )
+        write_schedule(shape, db, runs, source_run, identities)
 
         seen_terms = set()
         for (

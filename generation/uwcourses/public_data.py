@@ -517,6 +517,38 @@ def display_requirements_ast(course):
     )
 
 
+def schedule_offerings(db, runs, source_run, identities):
+    """Yield offerings from the same semester snapshots as sections/meetings."""
+    selected_runs = schedule_runs(db, runs, source_run)
+    placeholders = ",".join("?" for _ in selected_runs)
+    for row in db.execute(
+        f"SELECT * FROM offerings WHERE run_id IN ({placeholders}) ORDER BY run_id,offering_id",
+        selected_runs,
+    ):
+        detail = json.loads(row["details_json"])
+        value = {
+            "run_id": row["run_id"],
+            "semester": runs[row["run_id"]]["semester"],
+            "observed_at": timestamp(runs[row["run_id"]]["observed_at"]),
+            **{
+                k: row[k]
+                for k in (
+                    "offering_id",
+                    "course_id",
+                    "term_id",
+                    "source_course_id",
+                    "source_subject_id",
+                )
+            },
+            "course_uid": identities.get(row["course_id"]),
+            "title": detail.get("title"),
+            "credits_min": detail.get("minimumCredits"),
+            "credits_max": detail.get("maximumCredits"),
+            "typically_offered": detail.get("typicallyOffered"),
+        }
+        yield value
+
+
 def write_public(database, destination, release_id, source_run, registry_path=None):
     """Read an immutable archive; write only the public/ and serving/ subtrees."""
     destination = Path(destination)
@@ -581,34 +613,10 @@ def write_public(database, destination, release_id, source_run, registry_path=No
         )
         offers = []
         by_course = defaultdict(list)
-        selected_runs = schedule_runs(db, runs, source_run)
-        placeholders = ",".join("?" for _ in selected_runs)
-        for row in db.execute(
-            f"SELECT * FROM offerings WHERE run_id IN ({placeholders}) ORDER BY run_id,offering_id",
-            selected_runs,
-        ):
-            detail = json.loads(row["details_json"])
-            value = {
-                **observation(row["run_id"]),
-                **{
-                    k: row[k]
-                    for k in (
-                        "offering_id",
-                        "course_id",
-                        "term_id",
-                        "source_course_id",
-                        "source_subject_id",
-                    )
-                },
-                "course_uid": identities.get(row["course_id"]),
-                "title": detail.get("title"),
-                "credits_min": detail.get("minimumCredits"),
-                "credits_max": detail.get("maximumCredits"),
-                "typically_offered": detail.get("typicallyOffered"),
-            }
+        for value in schedule_offerings(db, runs, source_run, identities):
             offers.append(value)
-            if row["course_id"] is not None and row["run_id"] == source_run:
-                by_course[row["course_id"]].append(value)
+            if value["course_id"] is not None and value["run_id"] == source_run:
+                by_course[value["course_id"]].append(value)
         counts["offerings_current"] = write_rows(
             directory / "offerings_current.parquet",
             SCHEMAS["offerings_current"],
