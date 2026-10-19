@@ -295,6 +295,14 @@ class PublicationTests(unittest.TestCase):
             terms = [r["term_id"] for r in c["grades"]]
             self.assertEqual(len(terms), len(set(terms)))
             self.assertEqual(c["statistics"], grade_stats(c["grades"]))
+            for instructor in c["instructors"]:
+                self.assertIsNotNone(
+                    db.execute(
+                        "SELECT 1 FROM teaching WHERE instructor_uid=? AND course_uid=? AND term=?",
+                        (instructor["instructor_uid"], c["course_uid"], c["semester"]),
+                    ).fetchone(),
+                    "Current instructor roster must use the course's selected semester",
+                )
             for urls in c["evidence"].values():
                 self.assertTrue(
                     all(

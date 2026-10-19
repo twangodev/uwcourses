@@ -924,6 +924,136 @@ class PublicDataTests(unittest.TestCase):
             )
         )
 
+    def test_schedules_retain_latest_snapshot_per_semester(self):
+        from datetime import datetime
+        from uwcourses_site.campus import CampusSchedule
+
+        # Refresh Fall, then publish Spring. Reused meeting/offering IDs must
+        # remain distinct across terms; an obsolete Fall room must disappear.
+        self.db.execute("DELETE FROM offerings")
+        for run, term, observed in [
+            ("old", "1272", "2025-09-01T00:00:00+00:00"),
+            ("fall-refresh", "1272", "2026-08-01T00:00:00+00:00"),
+            ("new", "1274", "2026-09-01T00:00:00+00:00"),
+            ("later", "1272", "2026-10-01T00:00:00+00:00"),
+        ]:
+            if run in ("old", "new"):
+                self.db.execute(
+                    "UPDATE runs SET semester=? WHERE run_id=?", (term, run)
+                )
+            else:
+                self.db.execute(
+                    "INSERT INTO runs VALUES(?,?,?,?,?)",
+                    (run, term, observed, "scrape", None),
+                )
+                write_course(self.db, run, "COMPSCI 300", self.record)
+            self.db.execute(
+                "INSERT OR IGNORE INTO terms VALUES(?,?,?)", (run, term, term)
+            )
+            self.db.execute(
+                "INSERT INTO offerings VALUES(?,?,?,?,?,?,?,?)",
+                (run, "shared-offering", term, "COMPSCI 300", "123", "266", "{}", "{}"),
+            )
+            date = "2027-01-20" if term == "1274" else "2026-09-09"
+            start = int(
+                datetime.fromisoformat(date + "T14:00:00+00:00").timestamp() * 1000
+            )
+            detail = {
+                "name": "LEC 001 #1",
+                "type": "CLASS",
+                "location": {
+                    "building": "Science",
+                    "room": run,
+                    "coordinates": [43.075, -89.405],
+                },
+            }
+            self.db.execute(
+                "INSERT INTO meetings VALUES(?,?,?,?,?,?)",
+                (
+                    run,
+                    "COMPSCI 300",
+                    "shared-meeting",
+                    start,
+                    start + 3600000,
+                    canonical(detail),
+                ),
+            )
+            self.db.execute(
+                "INSERT INTO sections VALUES(?,?,?,?,?,?)",
+                (
+                    run,
+                    "shared-offering",
+                    "LEC:001",
+                    "LEC",
+                    "001",
+                    canonical(
+                        {
+                            "classUniqueId": {"classNumber": 101},
+                            "enrollmentStatus": {"currentlyEnrolled": 25},
+                            "startDate": start,
+                            "endDate": start + 86400000,
+                            "instructors": [{"name": "Teacher " + run, "netid": run}],
+                        }
+                    ),
+                ),
+            )
+        # A newer auxiliary snapshot with no courses cannot erase Fall.
+        self.db.execute(
+            "INSERT INTO runs VALUES(?,?,?,?,?)",
+            ("aux", "1272", "2026-08-20T00:00:00+00:00", "scrape", None),
+        )
+        self.db.commit()
+        output, _ = self.export()
+
+        def rows(name):
+            return pq.read_table(output / f"public/{name}.parquet").to_pylist()
+
+        for table in (
+            "offerings_current",
+            "sections_current",
+            "offering_sections",
+            "meetings_current",
+            "section_instructors_current",
+        ):
+            records = rows(table)
+            self.assertEqual(len(records), 2, table)
+            self.assertEqual(
+                {r["run_id"] for r in records}, {"fall-refresh", "new"}, table
+            )
+            self.assertEqual({r["observed_at"].month for r in records}, {8, 9}, table)
+        sections = {}
+        section_data = {r["section_uid"]: r for r in rows("sections_current")}
+        for link in rows("offering_sections"):
+            sections.setdefault(link["course_uid"], []).append(
+                section_data[link["section_uid"]]
+            )
+        schedule = CampusSchedule(sections)
+        for meeting in rows("meetings_current"):
+            schedule.add(meeting)
+        manifest = schedule.write(output, "test")
+        for date in ("2026-09-09", "2027-01-20"):
+            day = json.loads(
+                (
+                    output / manifest["assetBase"].lstrip("/") / f"{date}.json"
+                ).read_text()
+            )
+            self.assertEqual(sum(event[1] for event in day["events"]), 1)
+            self.assertEqual(len(day["buildings"]), 1)
+            self.assertEqual(day["buildings"][0]["sessions"][0]["enrolled"], 25)
+
+    def test_empty_newer_schedule_does_not_resurrect_old_meetings(self):
+        from uwcourses.dataset_shape import schedule_runs
+
+        self.db.execute(
+            "INSERT INTO meetings VALUES(?,?,?,?,?,?)",
+            ("old", "COMPSCI 300", "removed", 0, 1000, "{}"),
+        )
+        self.db.commit()
+        runs = {r["run_id"]: dict(r) for r in self.db.execute("SELECT * FROM runs")}
+        self.assertEqual(schedule_runs(self.db, runs, "new"), ["new"])
+        output, counts = self.export()
+        self.assertEqual(counts["meetings_current"], 0)
+
     def test_task_version_labels_survive_public_export(self):
         self.add_job("selected", 1)
         raw = self.db.execute(

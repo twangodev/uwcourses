@@ -265,3 +265,31 @@ test("course-search intro fades into the first statistic without moving search",
   const after = await search.boundingBox();
   expect(Math.abs(after!.y - before!.y)).toBeLessThan(1);
 });
+
+test("missing daily schedule is distinguished from zero active classes", async ({
+  page,
+}) => {
+  await page.clock.setFixedTime(now);
+  await mockCampus(page);
+  await page.route(`**/campus/**${date}.json`, (route) =>
+    route.fulfill({ status: 404, body: "Missing schedule" }),
+  );
+  await page.goto("/");
+  await expect(page.locator(".map-caption")).toContainText(
+    "Schedule unavailable for today",
+  );
+
+  await page.route(`**/campus/**${date}.json`, (route) =>
+    route.fulfill({ json: { date, events: [], buildings: [] } }),
+  );
+  await page.reload();
+  await expect(page.locator(".campus-scene")).toContainText(
+    "classes in session right now",
+  );
+  await expect(
+    page.locator(".fact-value").getByRole("img", { name: "0", exact: true }),
+  ).toBeVisible();
+  await expect(page.locator(".map-caption")).not.toContainText(
+    "Schedule unavailable for today",
+  );
+});

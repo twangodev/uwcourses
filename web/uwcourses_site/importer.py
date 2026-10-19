@@ -443,8 +443,9 @@ def compile_release(source, revision, output, static, limit=0, manifest=None):
             for iid in section_inst[r["section_uid"]]:
                 if iid not in inst:
                     raise ValueError(f"Missing instructor {iid}")
-                course_inst[uid].add(iid)
-                inst_courses[iid].add(uid)
+                if section["term_id"] == courses[uid]["semester"]:
+                    course_inst[uid].add(iid)
+                    inst_courses[iid].add(uid)
                 db.execute(
                     "INSERT OR IGNORE INTO teaching VALUES(?,?,?)",
                     (iid, uid, section["term_id"]),
