@@ -63,9 +63,22 @@ test("statistics dialogs are readable on mobile and respond to term changes", as
   await page.getByRole("button", { name: "Previous term" }).click();
   await expect(page).toHaveURL(/stats\?term=/);
   await openCard(page, "Campus activity");
-  await expect(
-    page.getByText("We don’t have a building schedule", { exact: false }),
-  ).toBeVisible();
+  const selected = await (
+    await page.request.get(`/stats.json${new URL(page.url()).search}`)
+  ).json();
+  const stats = selected.data.schoolStats;
+  if (stats.terms[stats.selectedTerm].schedule.meetings > 0) {
+    await expect(
+      page.getByRole("dialog").locator('.map svg [role="button"]').first(),
+    ).toBeVisible();
+    await expect(
+      page.getByText("We don’t have a building schedule", { exact: false }),
+    ).toHaveCount(0);
+  } else {
+    await expect(
+      page.getByText("We don’t have a building schedule", { exact: false }),
+    ).toBeVisible();
+  }
   await closeCard(page);
   await page.getByRole("button", { name: "Next term" }).click();
   await openCard(page, "Busiest hour");
@@ -241,4 +254,24 @@ test("cards open focus-trapped dialogs without rearranging the grid and return f
       () => document.documentElement.scrollWidth <= innerWidth,
     ),
   ).toBe(true);
+});
+
+test("statistics distinguish an uncovered term from a recorded building schedule", async ({
+  page,
+  request,
+}) => {
+  const document = await (await request.get("/stats.json")).json();
+  const stats = document.data.schoolStats;
+  const uncovered = Object.keys(stats.terms).find(
+    (term) => stats.terms[term].schedule.meetings === 0,
+  );
+  expect(uncovered).toBeTruthy();
+  await page.goto(`/stats?term=${uncovered}`);
+  await openCard(page, "Campus activity");
+  await expect(
+    page.getByText("We don’t have a building schedule", { exact: false }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("dialog").locator('.map svg [role="button"]'),
+  ).toHaveCount(0);
 });
