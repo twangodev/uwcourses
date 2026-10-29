@@ -9,7 +9,7 @@ from sqlalchemy import inspect
 from .schema import pipeline, processing
 
 
-def upgrade_database(db, kind):
+def upgrade_database(db, kind, fingerprint=None):
     metadata = {"pipeline": pipeline, "processing": processing}[kind]
     connection = db.connection
     config = Config()
@@ -20,6 +20,7 @@ def upgrade_database(db, kind):
     try:
         # Serialize schema initialization across commands, before inspecting/stamping.
         db.execute("BEGIN IMMEDIATE")
+        original = fingerprint(db) if fingerprint else None
         inspector = inspect(connection)
         tables = set(inspector.get_table_names())
         version = db.execute("PRAGMA user_version").fetchone()[0]
@@ -65,7 +66,10 @@ def upgrade_database(db, kind):
                     f"Unrecognized {kind} database schema; refusing to initialize"
                 )
         command.upgrade(config, "head")
+        if fingerprint and fingerprint(db) != original:
+            raise ValueError("Database contents changed during storage migration")
         db.commit()
+        return original
     except Exception:
         db.rollback()
         raise

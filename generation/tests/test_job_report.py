@@ -5,6 +5,7 @@ import tempfile
 import unittest
 
 from uwcourses.job_report import report
+from uwcourses.storage_codec import pack
 
 
 class ReportTests(unittest.TestCase):
@@ -75,6 +76,19 @@ class ReportTests(unittest.TestCase):
             self.assertEqual(value["retained_sections_checked"], 1)
             self.assertEqual(value["changed_retained_sections"], 0)
             self.assertNotIn("private-url", json.dumps(value))
+            with sqlite3.connect(path) as db:
+                for column in ("input_json", "output_json", "usage_json"):
+                    for rowid, text in db.execute(
+                        f"SELECT rowid,{column} FROM results"
+                    ).fetchall():
+                        if text:
+                            expanded = json.loads(text)
+                            expanded["storage_test"] = "repeated evidence " * 1000
+                            db.execute(
+                                f"UPDATE results SET {column}=? WHERE rowid=?",
+                                (pack(json.dumps(expanded)), rowid),
+                            )
+            self.assertEqual(report(directory, "job"), value)
             output["sections"]["search_profile"] = {
                 "status": "valid",
                 "value": {"text": "changed"},

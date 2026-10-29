@@ -11,6 +11,8 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.pool import NullPool
 
+from .storage_codec import pack, unpack
+
 
 class Row:
     def __init__(self, row):
@@ -20,10 +22,10 @@ class Row:
         return self.row._mapping.keys()
 
     def __getitem__(self, key):
-        return self.row._mapping[key] if isinstance(key, str) else self.row[key]
+        return unpack(self.row._mapping[key] if isinstance(key, str) else self.row[key])
 
     def __iter__(self):
-        return iter(self.row)
+        return (unpack(value) for value in self.row)
 
     def __len__(self):
         return len(self.row)
@@ -50,16 +52,27 @@ class Cursor:
 class Database:
     def __init__(self, path, *, readonly=False, timeout=5, wal=False):
         path = Path(path).resolve()
-        self.engine = create_engine(
-            "sqlite+pysqlite://",
-            creator=lambda: sqlite3.connect(
+
+        def connect():
+            connection = sqlite3.connect(
                 path.as_uri() + ("?mode=ro" if readonly else "?mode=rwc"),
                 uri=True,
                 timeout=timeout,
-            ),
+            )
+            connection.create_function("uwcourses_text", 1, unpack, deterministic=True)
+            connection.create_function("uwcourses_pack", 1, pack, deterministic=True)
+            return connection
+
+        self.engine = create_engine(
+            "sqlite+pysqlite://",
+            creator=connect,
             poolclass=NullPool,
         )
-        self.connection = self.engine.connect()
+        try:
+            self.connection = self.engine.connect()
+        except DBAPIError as exc:
+            self.engine.dispose()
+            raise exc.orig from exc
         try:
             self.execute("PRAGMA foreign_keys=ON")
             if readonly:

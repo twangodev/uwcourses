@@ -84,7 +84,7 @@ class DatabaseTests(unittest.TestCase):
         )
         self.assertEqual(
             store.db.execute("SELECT version_num FROM alembic_version").fetchone()[0],
-            "0003_snapshot_views",
+            "0004_compressed_payloads",
         )
         self.assertEqual(store.db.execute("PRAGMA user_version").fetchone()[0], 2)
         store.close()

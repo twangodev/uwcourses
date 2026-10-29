@@ -289,6 +289,43 @@ uv run python scripts/evaluate_requirements.py \
 content-addressed raw responses remain local. Keep the workspace private: raw
 bodies and Scrapy queues may contain authentication details. They are not exported.
 
+Private SQLite JSON payloads use per-value Zstandard compression through Arrow's
+native codec. Values below 1 KiB, or with less than 12.5% savings, stay as text.
+The pipeline connection decodes both old text and compressed BLOBs transparently;
+JSON views use its `uwcourses_text()` SQL function. Use `Database` or `Store` to
+query private databases. Release SQLite databases retain ordinary JSON text and
+remain readable with standard SQLite tools.
+
+Inspect a workspace without modifying it, or compact its private databases:
+
+```sh
+uv run uwcourses --workspace .coursemap/spring2027 storage
+uv run uwcourses --workspace .coursemap/spring2027 storage --compact
+```
+
+The first writable open upgrades old private payloads. `storage --compact` also
+verifies every logical table value before committing the migration, vacuums the
+freed pages, and checks SQLite integrity and foreign keys. Run maintenance while
+scraping and inference jobs are idle; it refuses active workspace/job locks or a
+busy database. It needs temporary space for the migration journal and vacuum.
+It does not prune snapshots, jobs, raw evidence, candidates, or releases.
+
+| Workspace contents | Role and retention |
+| --- | --- |
+| `pipeline.sqlite`, `course-identities.json` | Durable observations, checkpoints and identities; retain. |
+| `processing.sqlite` jobs/results | Durable prompts, outputs, provenance and retry state; retain. |
+| `processing.sqlite.output_cache` | Reusable inference results; dispensable for history, useful for avoiding repeat inference. Do not delete the whole database to clear it. |
+| `raw/` | Already compressed source evidence; retain for replay and citations. |
+| `runs/`, `jobs/` | Configuration, logs and resume state; inspect before removal. |
+| `releases/` | Retained exports; manage retention separately from working caches. |
+| `builds/`, `models/embeddings/`, `runtime-cache/` | Rebuildable projections, embedding vectors and compiled kernels. |
+| `inference-venv/` | Reinstallable from `inference/uv.lock`. |
+| Candidate and smoke-test directories | Inspect provenance and active use before cleanup. |
+
+The website's `.site/`, `.svelte-kit/`, and `.cache/` hold disposable serving/build
+outputs. They do not replace source workspaces. Hugging Face model downloads use
+the shared user cache, independently of these private records.
+
 `releases/RELEASE_ID/` contains a public relational SQLite database, equivalent
 Parquet tables, a dataset card, and a checksummed manifest. Nested source structures
 remain JSON columns. History joins by `run_id`; `current_*` views select the chosen

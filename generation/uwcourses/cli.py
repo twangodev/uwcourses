@@ -33,6 +33,12 @@ def parser():
         dest="command",
         required=True,
     )
+    storage = commands.add_parser("storage", help="Inspect private workspace storage")
+    storage.add_argument(
+        "--compact",
+        action="store_true",
+        help="Compress and vacuum private databases, preserving all logical records",
+    )
     run = commands.add_parser(
         "scrape",
         aliases=["run"],
@@ -273,6 +279,19 @@ def execute_run(store, run):
 
 def main(argv=None):
     args = parser().parse_args(argv)
+    if args.command == "storage":
+        from .storage import compact, report
+
+        value = (
+            compact(
+                args.workspace,
+                progress=lambda message: print(message, file=sys.stderr, flush=True),
+            )
+            if args.compact
+            else report(args.workspace)
+        )
+        print(canonical(value))
+        return
     if args.command == "traces-refresh":
         from .traces_refresh import refresh_traces
 

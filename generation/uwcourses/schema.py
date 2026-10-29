@@ -12,6 +12,8 @@ from sqlalchemy import (
     Text,
 )
 
+from .storage_codec import CompressedText
+
 pipeline = MetaData()
 processing = MetaData()
 archive = MetaData()
@@ -24,7 +26,7 @@ runs = Table(
     Column("started_at", Text, nullable=False),
     Column("completed_at", Text),
     Column("status", Text, nullable=False),
-    Column("config_json", Text, nullable=False),
+    Column("config_json", CompressedText, nullable=False),
     Column("revision", Text),
     Column("observed_at", Text),
     Column("origin", Text, nullable=False, server_default="scrape"),
@@ -49,8 +51,8 @@ observations = Table(
     Column("source_url", Text, nullable=False),
     Column("observed_at", Text, nullable=False),
     Column("content_hash", Text, nullable=False),
-    Column("payload_json", Text, nullable=False),
-    CheckConstraint("json_valid(payload_json)"),
+    Column("payload_json", CompressedText, nullable=False),
+    CheckConstraint("json_valid(uwcourses_text(payload_json))"),
 )
 Index("observation_kind", observations.c.run_id, observations.c.kind)
 responses = Table(
@@ -71,15 +73,15 @@ artifacts = Table(
     Column("run_id", Text, ForeignKey("runs.run_id"), primary_key=True, nullable=True),
     Column("name", Text, primary_key=True, nullable=True),
     Column("input_hash", Text, nullable=False),
-    Column("config_json", Text, nullable=False),
-    Column("payload_json", Text, nullable=False),
+    Column("config_json", CompressedText, nullable=False),
+    Column("payload_json", CompressedText, nullable=False),
 )
 jobs = Table(
     "jobs",
     processing,
     Column("job_id", Text, primary_key=True, nullable=True),
     Column("source_run", Text, nullable=False),
-    Column("spec_json", Text, nullable=False),
+    Column("spec_json", CompressedText, nullable=False),
     Column("status", Text, nullable=False),
     Column("created_at", Text, nullable=False),
 )
@@ -89,10 +91,10 @@ results = Table(
     Column("job_id", Text, ForeignKey("jobs.job_id"), primary_key=True, nullable=True),
     Column("course_id", Text, primary_key=True, nullable=True),
     Column("cache_key", Text, nullable=False),
-    Column("input_json", Text, nullable=False),
+    Column("input_json", CompressedText, nullable=False),
     Column("status", Text, nullable=False),
-    Column("output_json", Text),
-    Column("usage_json", Text),
+    Column("output_json", CompressedText),
+    Column("usage_json", CompressedText),
     Column("error", Text),
     Column("attempts", Integer, nullable=False, server_default="0"),
 )
@@ -100,8 +102,8 @@ output_cache = Table(
     "output_cache",
     processing,
     Column("cache_key", Text, primary_key=True, nullable=True),
-    Column("output_json", Text, nullable=False),
-    Column("usage_json", Text, nullable=False),
+    Column("output_json", CompressedText, nullable=False),
+    Column("usage_json", CompressedText, nullable=False),
 )
 
 

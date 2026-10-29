@@ -4,13 +4,14 @@ from collections import Counter, defaultdict
 from contextlib import closing
 import json
 from pathlib import Path
-import sqlite3
+
+from .database import Database
 
 
 def report(root, job_id):
-    uri = (Path(root) / "processing.sqlite").resolve().as_uri() + "?mode=ro"
-    with closing(sqlite3.connect(uri, uri=True, timeout=30)) as db:
-        db.row_factory = sqlite3.Row
+    with closing(
+        Database(Path(root) / "processing.sqlite", readonly=True, timeout=30)
+    ) as db:
         # One consistent WAL snapshot while the worker continues checkpointing.
         db.execute("BEGIN")
         job = db.execute("SELECT * FROM jobs WHERE job_id=?", (job_id,)).fetchone()
