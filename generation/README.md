@@ -148,6 +148,8 @@ uv run python scripts/serve_inference.py --workspace "$UWCOURSES_WORKSPACE" \
 
 The separate `inference/` uv project locks vLLM and its GPU dependencies. Servers
 bind to loopback; `--dry-run` prints a launch command without downloading weights.
+Model weights use the shared Hugging Face cache, honoring `HF_HOME` and
+`HF_HUB_CACHE`. The inference environment and runtime caches stay in the workspace.
 Profiles control model/revision, token limits, dimensions, document prefix,
 concurrency and server arguments. Alternative vLLM/SGLang servers can
 use the same HTTP boundary; serve the identity `HF_MODEL_ID@COMMIT_SHA` and record

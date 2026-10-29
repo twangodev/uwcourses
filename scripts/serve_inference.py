@@ -55,7 +55,10 @@ def main():
     env.pop("UV_PROJECT_ENVIRONMENT", None)
     env.pop("VIRTUAL_ENV", None)
     env["UV_PROJECT_ENVIRONMENT"] = str(args.workspace.resolve() / "inference-venv")
-    env["HF_HOME"] = str(args.workspace.resolve() / "models" / "huggingface")
+    env.setdefault(
+        "HF_HOME",
+        str(Path(env.get("XDG_CACHE_HOME", Path.home() / ".cache")) / "huggingface"),
+    )
     env["XDG_CACHE_HOME"] = str(args.workspace.resolve() / "runtime-cache")
     env["VLLM_NO_USAGE_STATS"] = "1"
     if env.get("COURSEMAP_INFERENCE_API_KEY"):
