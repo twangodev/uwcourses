@@ -332,32 +332,6 @@ class GradeData(JsonSerializable):
             instructors=set(),
         )
 
-    def merge_with(self, other: "GradeData") -> "GradeData":
-        if not other:
-            return self
-        return GradeData(
-            total=self.total + other.total,
-            a=self.a + other.a,
-            ab=self.ab + other.ab,
-            b=self.b + other.b,
-            bc=self.bc + other.bc,
-            c=self.c + other.c,
-            d=self.d + other.d,
-            f=self.f + other.f,
-            satisfactory=self.satisfactory + other.satisfactory,
-            unsatisfactory=self.unsatisfactory + other.unsatisfactory,
-            credit=self.credit + other.credit,
-            no_credit=self.no_credit + other.no_credit,
-            passed=self.passed + other.passed,
-            incomplete=self.incomplete + other.incomplete,
-            no_work=self.no_work + other.no_work,
-            not_reported=self.not_reported + other.not_reported,
-            other=self.other + other.other,
-            instructors=self.instructors.union(other.instructors)
-            if self.instructors and other.instructors
-            else self.instructors or other.instructors,
-        )
-
     @classmethod
     def from_madgrades(cls, json_data) -> "GradeData":
         return GradeData(

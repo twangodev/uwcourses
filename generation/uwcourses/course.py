@@ -384,37 +384,8 @@ class Course(JsonSerializable):
             official_learning_outcomes=outcomes,
         )
 
-    def determine_parent(self):
-        parent = None
-        subjects = self.course_reference.subjects
-        if len(subjects) > 1:
-            parent = "CROSSLISTED"
-        elif len(subjects) == 1:
-            parent = next(iter(subjects))
-        return parent
-
     def get_identifier(self):
         return self.course_reference.get_identifier()
-
-    def get_short_summary(self):
-        return f"""Course Title: {self.course_reference.get_identifier()} - {self.course_title}
-        Course Description: {self.description}
-        """
-
-    def get_full_summary(self):
-        req = self.prerequisites.prerequisites_text
-        return f"""{self.get_short_summary()}
-        Prerequisites: {req}
-        """
-
-    def get_latest_term_data(self):
-        """
-        Get the latest term data for the course.
-        """
-        if not self.term_data:
-            return None
-        latest_term = max(self.term_data.keys(), key=lambda x: int(x))
-        return self.term_data[latest_term]
 
     def __eq__(self, other):
         return (

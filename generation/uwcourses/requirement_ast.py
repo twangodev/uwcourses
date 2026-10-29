@@ -244,9 +244,6 @@ class Leaf(JsonSerializable):
     def __init__(self, payload: JsonSerializable | str):
         self.payload = payload
 
-    def to_tree_print(self):
-        return _tree_repr(self, is_root=True)
-
     @classmethod
     def from_json(cls, json_data) -> "Leaf":
         from uwcourses.course import Course
@@ -291,35 +288,6 @@ class Node(JsonSerializable):
             ],
         }
 
-    def to_tree_print(self):
-        return _tree_repr(self, is_root=True)
-
-
-def _tree_repr(
-    node: Union[Node, Leaf],
-    prefix: str = "",
-    is_last: bool = True,
-    is_root: bool = False,
-) -> str:
-    if is_root:
-        label = node.operator if isinstance(node, Node) else node.payload
-        line = label
-        children_prefix = ""
-    else:
-        connector = "└── " if is_last else "├── "
-        label = node.operator if isinstance(node, Node) else node.payload
-        line = f"{prefix}{connector}{label}"
-        children_prefix = prefix + ("    " if is_last else "│   ")
-
-    if isinstance(node, Node):
-        lines = [line]
-        for idx, child in enumerate(node.children):
-            last = idx == len(node.children) - 1
-            lines.append(_tree_repr(child, children_prefix, last))
-        return "\n".join(lines)
-    else:
-        return line
-
 
 class RequirementAbstractSyntaxTree(JsonSerializable):
     def __init__(self, root: Union[Node, Leaf]):
@@ -340,53 +308,6 @@ class RequirementAbstractSyntaxTree(JsonSerializable):
             if isinstance(self.root, JsonSerializable)
             else str(self.root)
         )
-
-    def to_tree_print(self):
-        return _tree_repr(self.root, is_root=True)
-
-    def course_combinations(self):
-        def _recurse(node):
-            # Leaf case
-            if isinstance(node, Leaf):
-                if not isinstance(node.payload, str):
-                    # it's a Course.Reference
-                    return [[node.payload]]
-                else:
-                    # a TEXT leaf: contributes no courses
-                    return [[]]
-
-            # Node case
-            assert isinstance(node, Node)
-            if node.operator == "AND":
-                combos = [[]]  # start with an “empty” combo
-                for child in node.children:
-                    child_combos = _recurse(child)
-                    # Cartesian product: append every child-combo to every existing combo
-                    combos = [prev + curr for prev in combos for curr in child_combos]
-                return combos
-
-            elif node.operator == "OR":
-                # any one child’s combos will do
-                combos = []
-                for child in node.children:
-                    combos.extend(_recurse(child))
-                return combos
-
-            else:
-                raise ValueError(f"Unknown operator {node.operator!r}")
-
-        raw = _recurse(self.root)
-        # option 1: drop any empty combos (if you only want actual course sets)
-        nonempty = [combo for combo in raw if combo]
-        # option 2: dedupe (set of tuples) and preserve order
-        seen = set()
-        unique = []
-        for combo in nonempty:
-            key = tuple(sorted(combo, key=lambda cr: str(cr)))
-            if key not in seen:
-                seen.add(key)
-                unique.append(combo)
-        return unique
 
 
 class RequirementParser:

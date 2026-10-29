@@ -5,7 +5,7 @@ from logging import getLogger
 
 from bs4 import BeautifulSoup
 from diskcache import Cache
-from tqdm.asyncio import tqdm
+from tqdm import tqdm
 
 from uwcourses.course import Course
 from uwcourses.enrollment_data import GradeData
@@ -220,7 +220,7 @@ def get_match_cache(cache_dir: str) -> Cache:
 null_sentinel = object()
 
 
-async def merge_instructors(
+def merge_instructors(
     additional_instructors, instructors, course_ref_to_course, cache_dir
 ):
     instructor_appearances: dict[str, list[tuple[Course.Reference, str]]] = defaultdict(

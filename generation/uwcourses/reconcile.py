@@ -1,7 +1,5 @@
 """Reconcile catalog, grades, instructors, and meetings into a source snapshot."""
 
-import asyncio
-
 from .models import canonical
 
 
@@ -122,10 +120,8 @@ def reconcile(store, run):
         for name in (term.grade_data.instructors or [])
         if name
     }
-    asyncio.run(
-        merge_instructors(
-            additional, emails, courses, str(store.root / "runs" / run / "name-cache")
-        )
+    merge_instructors(
+        additional, emails, courses, str(store.root / "runs" / run / "name-cache")
     )
     faculty = store.records(run, "faculty")
     ratings = store.records(run, "ratings")
