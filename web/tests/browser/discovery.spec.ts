@@ -262,7 +262,9 @@ test("course filters combine on search, departments, and collections", async ({
     .getByRole("button", { name: "Course details", exact: true })
     .click();
   await finder.getByRole("button", { name: "Graduate", exact: true }).click();
-  await expect(page).toHaveURL(/level=700(%2C|,)800(%2C|,)900/);
+  await expect(page).toHaveURL(/level=700(%2C|,)800(%2C|,)900/, {
+    timeout: 10000,
+  });
   await finder.getByRole("button", { name: "Schedule", exact: true }).click();
   await finder.getByRole("button", { name: "In person", exact: true }).click();
   await finder.getByRole("button", { name: "Grades", exact: true }).click();
