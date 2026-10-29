@@ -1,11 +1,19 @@
 import { expect, it } from "vitest";
-import { courseFit } from "../../src/lib/course-fit";
+import { courseFitObservations } from "../../src/lib/course-fit";
 
 it("describes grade outcomes with stable thresholds and no personal prediction", () => {
-  expect(courseFit({ gpa: 3.5, reference: 3.3, group: "COMPSCI" })).toContain("higher grades");
-  expect(courseFit({ gpa: 3.1, reference: 3.3, group: "COMPSCI" })).toContain("run lower");
-  expect(courseFit({ gpa: 3.4, reference: 3.3, group: "COMPSCI" })).toContain("close to the average");
-  expect(courseFit({ gpa: 3.4, reference: null, group: "COMPSCI" })).toBe("");
+  for (const [gpa, phrase] of [
+    [3.5, "higher grades"],
+    [3.1, "run lower"],
+    [3.4, "close to the average"],
+  ] as const) {
+    expect(
+      courseFitObservations({ gpa, reference: 3.3, group: "COMPSCI" }),
+    ).toEqual([{ kind: "grades", text: expect.stringContaining(phrase) }]);
+  }
+  expect(
+    courseFitObservations({ gpa: 3.4, reference: null, group: "COMPSCI" }),
+  ).toEqual([]);
 });
 it("keeps lecture and discussion sizes separate and ignores empty or duplicated sections", () => {
   const sections = [
@@ -16,11 +24,27 @@ it("keeps lecture and discussion sizes separate and ignores empty or duplicated 
     { section_uid: "d", section_type: "DIS", enrolled: null },
     { section_uid: "e", section_type: "DIS", enrolled: 0 },
   ];
-  const text = courseFit({ group: "school", sections });
-  expect(text).toContain("Lectures are large, with a median of 200");
-  expect(text).toContain("Discussion sections are small, with a median of 20");
+  expect(courseFitObservations({ group: "school", sections })).toEqual([
+    {
+      kind: "enrollment",
+      text: expect.stringContaining("Lectures are large, with a median of 200"),
+    },
+    {
+      kind: "enrollment",
+      text: expect.stringContaining(
+        "Discussion sections are small, with a median of 20",
+      ),
+    },
+  ]);
 });
 it("omits unsupported claims and uses middle-sized section wording", () => {
-  expect(courseFit({ group: "school" })).toBe("");
-  expect(courseFit({ group: "school", sections: [{ section_type: "LAB", enrolled: 40 }] })).toContain("Labs are mid-sized");
+  expect(courseFitObservations({ group: "school" })).toEqual([]);
+  expect(
+    courseFitObservations({
+      group: "school",
+      sections: [{ section_type: "LAB", enrolled: 40 }],
+    }),
+  ).toEqual([
+    { kind: "enrollment", text: expect.stringContaining("Labs are mid-sized") },
+  ]);
 });

@@ -229,32 +229,10 @@ export const courseFacets = [
   },
 ] as const satisfies readonly CourseFacet[];
 
-export type CourseFacetId = (typeof courseFacets)[number]["id"];
-
 export function facetParam(name: string) {
   for (const facet of courseFacets) {
     const param = facet.params.find((item) => item.name === name);
     if (param) return param;
   }
   throw new Error(`Unknown course facet parameter: ${name}`);
-}
-
-export const panelFacetIds = [
-  "tags",
-  "level",
-  "credits",
-  "gpa",
-  "requisites",
-  "season",
-  "designation",
-  "instructor",
-  "days",
-  "time",
-  "mode",
-] as const satisfies readonly CourseFacetId[];
-
-export function panelFacets() {
-  return panelFacetIds.map((id) =>
-    courseFacets.find((facet) => facet.id === id)!,
-  );
 }

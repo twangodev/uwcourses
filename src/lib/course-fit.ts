@@ -27,11 +27,12 @@ export function courseFitObservations({
     const delta = Math.round((gpa - reference) * 100) / 100;
     sentences.push({
       kind: "grades",
-      text: delta >= 0.2
-        ? `Students tend to earn higher grades here than in other ${group} courses.`
-        : delta <= -0.2
-          ? `Grades tend to run lower here than in other ${group} courses.`
-          : `Grade outcomes are close to the average across ${group} courses.`,
+      text:
+        delta >= 0.2
+          ? `Students tend to earn higher grades here than in other ${group} courses.`
+          : delta <= -0.2
+            ? `Grades tend to run lower here than in other ${group} courses.`
+            : `Grade outcomes are close to the average across ${group} courses.`,
     });
   }
   const unique = [
@@ -65,12 +66,11 @@ export function courseFitObservations({
     );
     const scale =
       median <= 30 ? "small" : median >= 100 ? "large" : "mid-sized";
-    sentences.push({ kind: "enrollment", text: `${noun} are ${scale}, with a median of ${median.toLocaleString("en-US")} enrolled students in the recorded sections.` });
+    sentences.push({
+      kind: "enrollment",
+      text: `${noun} are ${scale}, with a median of ${median.toLocaleString("en-US")} enrolled students in the recorded sections.`,
+    });
     if (type !== "LEC") break;
   }
   return sentences;
-}
-
-export function courseFit(input: Parameters<typeof courseFitObservations>[0]) {
-  return courseFitObservations(input).map(({ text }) => text).join(" ");
 }

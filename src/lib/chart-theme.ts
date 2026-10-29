@@ -10,4 +10,3 @@ export const gradeColors = [
 ];
 export const chartAxis = { tickOcclusion: true, tickSpacing: 90 };
 export const percentLabel = (value: number) => `${value.toFixed(1)}%`;
-export const gpaLabel = (value: number) => value.toFixed(2);
