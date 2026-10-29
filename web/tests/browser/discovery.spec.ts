@@ -72,9 +72,9 @@ test("instructor reviews show original comments, paginate and filter by course",
     "COMPSCI 300",
   );
   await page.setViewportSize({ width: 390, height: 844 });
-  expect(
-    await page.evaluate(() => document.documentElement.scrollWidth),
-  ).toBeLessThanOrEqual(390);
+  await expect
+    .poll(() => page.evaluate(() => document.documentElement.scrollWidth))
+    .toBeLessThanOrEqual(390);
   expect(errors).toEqual([]);
 });
 test("dedicated course collections preserve department filters and fixed rankings", async ({
