@@ -112,12 +112,25 @@ class CourseContext:
         # Reviews must retain explicit course/date attribution. General professor
         # comments remain in the archive rather than becoming facts about every class.
         seen_reviews = set()
-        for row in store.db.execute(
-            select(observations.c.payload_json)
+        rating_sources = store.db.execute(
+            select(observations.c.source)
             .where(observations.c.run_id == run, observations.c.kind == "ratings")
-            .order_by(observations.c.entity_id, observations.c.source)
-        ):
-            record = json.loads(row[0])
+            .distinct()
+        ).fetchall()
+        if len(rating_sources) > 1:
+            rating_records = store.records(run, "ratings").values()
+        else:
+            rating_records = (
+                json.loads(row[0])
+                for row in store.db.execute(
+                    select(observations.c.payload_json)
+                    .where(
+                        observations.c.run_id == run, observations.c.kind == "ratings"
+                    )
+                    .order_by(observations.c.entity_id, observations.c.source)
+                )
+            )
+        for record in rating_records:
             for review in record.get("course_reviews", []):
                 required = (
                     "course_id",

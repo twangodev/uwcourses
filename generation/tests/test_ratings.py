@@ -66,6 +66,24 @@ class RatingTests(unittest.TestCase):
     def tearDown(self):
         self.fixture.tearDown()
 
+    def test_course_context_rejects_conflicting_rating_sources(self):
+        self.store.put(
+            self.run,
+            "legacy",
+            {
+                "kind": "ratings",
+                "key": "Jane Example",
+                "payload": {
+                    "name": "Jane Example",
+                    "candidates": [],
+                    "collection_complete": True,
+                },
+                "source_url": "https://example.com/legacy",
+            },
+        )
+        with self.assertRaisesRegex(ValueError, "Conflicting ratings record"):
+            CourseContext(self.store, self.run)
+
     def test_scrape_requires_instructors_without_opt_in(self):
         with tempfile.TemporaryDirectory() as root:
             with (
