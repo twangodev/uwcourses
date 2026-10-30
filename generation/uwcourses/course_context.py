@@ -56,7 +56,7 @@ def sample_reviews(reviews, limit=30):
 
 
 class CourseContext:
-    def __init__(self, store, run):
+    def __init__(self, store, run, *, catalog_only=False):
         self.courses = store.records(run, "courses")
         self.official_outcomes = course_outcome_map(store, run)
         self.sources = dict(
@@ -73,6 +73,8 @@ class CourseContext:
                 self.aliases.setdefault((subject, ref["course_number"]), set()).add(key)
         self.history = {}
         self.reviews = {}
+        if catalog_only:
+            return
         terms = store.records(run, "terms")
         for row in store.db.execute(
             select(observations.c.payload_json)
@@ -110,7 +112,12 @@ class CourseContext:
         # Reviews must retain explicit course/date attribution. General professor
         # comments remain in the archive rather than becoming facts about every class.
         seen_reviews = set()
-        for record in store.records(run, "ratings").values():
+        for row in store.db.execute(
+            select(observations.c.payload_json)
+            .where(observations.c.run_id == run, observations.c.kind == "ratings")
+            .order_by(observations.c.entity_id, observations.c.source)
+        ):
+            record = json.loads(row[0])
             for review in record.get("course_reviews", []):
                 required = (
                     "course_id",

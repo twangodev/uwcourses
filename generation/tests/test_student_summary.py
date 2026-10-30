@@ -44,6 +44,105 @@ def review(id, instructor):
 
 
 class StudentSummaryTests(unittest.TestCase):
+    def test_incremental_snapshot_reuses_scopes_and_refreshes_citations(self):
+        task = load_task(
+            Path(__file__).resolve().parents[2] / "inference/tasks/student_summary.json"
+        )
+        profile = {"model": "test", "revision": "abc", "max_output_tokens": 1000}
+        source = {
+            "course_id": "COMPSCI 300",
+            "term_id": "1274",
+            "term_name": "Spring 2027",
+            "offered": True,
+            "grade_records": [grade("1", 1, 1)],
+            "teaching_history": [],
+            "current_instructors": [
+                {
+                    "name": name,
+                    "instructor_uid": name,
+                    "rmp_instructor_id": name,
+                    "reviews": [review(name, name)],
+                    "grade_records": [],
+                }
+                for name in ["Jane Doe", "Other Teacher"]
+            ],
+            "historical_reviews": [review("old", "Former Teacher")],
+        }
+        payload = {
+            "source_run": "old",
+            "student_context": source,
+            "summary_seed": {"job_id": "catalog", "output": {"sections": {}}},
+        }
+        calls = []
+
+        def fake(profile, task, request):
+            calls.append((request["mode"], request["instructor_name"]))
+            field = "quick_take" if request["mode"] == "overview" else "summary"
+            return {
+                field: [
+                    {
+                        "text": (request["instructor_name"] or "Reviewers")
+                        + " reported clear lectures.",
+                        "review_ids": ["review:1"],
+                    }
+                ]
+            }, {}
+
+        original, _ = generate_student(profile, task, payload, generate=fake)
+        self.assertEqual(len(calls), 4)
+        seed = {
+            "job_id": "previous",
+            "source_run": "old",
+            "profile": profile,
+            "student_context": copy.deepcopy(source),
+            "output": original,
+        }
+        updated = copy.deepcopy(source)
+        updated["grade_records"][0]["citation"]["run_id"] = "new"
+        refreshed = {
+            "source_run": "new",
+            "student_context": updated,
+            "summary_seed": seed,
+        }
+        calls.clear()
+        result, _ = generate_student(profile, task, refreshed, generate=fake)
+        self.assertEqual(calls, [])
+        self.assertEqual(len(result["provenance"]["reused_scopes"]), 4)
+        value = result["sections"]["student_summary"]["value"]
+        for claims in [
+            value["quick_take"],
+            value["historical_context"],
+            *(p["summary"] for p in value["current_instructors"]),
+        ]:
+            for claim in claims:
+                for citation in claim["citations"]:
+                    self.assertEqual(citation["run_id"], "new")
+        self.assertEqual(
+            original["sections"]["student_summary"]["value"]["quick_take"][0][
+                "citations"
+            ][0]["run_id"],
+            "old",
+        )
+
+        corrupted = copy.deepcopy(seed)
+        corrupted["output"]["sections"]["student_summary"]["value"]["quick_take"][0][
+            "citations"
+        ][0]["source_review_id"] = "unrelated-review"
+        refreshed["summary_seed"] = corrupted
+        calls.clear()
+        generate_student(profile, task, refreshed, generate=fake)
+        self.assertEqual(calls, [("overview", None)])
+        refreshed["summary_seed"] = seed
+
+        updated["current_instructors"][0]["reviews"].append(
+            review("new-review", "Jane Doe")
+        )
+        calls.clear()
+        changed, _ = generate_student(profile, task, refreshed, generate=fake)
+        self.assertEqual(calls, [("professor", "Jane Doe"), ("overview", None)])
+        self.assertEqual(len(changed["provenance"]["reused_scopes"]), 2)
+        self.assertEqual(changed["sections"]["student_summary"]["status"], "valid")
+
     def test_past_only_reviews_generate_one_preview_and_preserve_citations(self):
         calls = []
         historical = review("old-review", "Former Instructor")

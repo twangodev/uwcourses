@@ -21,7 +21,7 @@ from .tasks import load_task
 from .store import Store, now
 
 
-WORKER_VERSION = 61
+WORKER_VERSION = 62
 
 
 def generation_schema(schema):
@@ -252,6 +252,7 @@ class Jobs:
                     reuse_job_ids or [],
                     source_run,
                     allow_partial=allow_partial_reuse,
+                    context=context,
                 )
                 if any(key not in seeds for key in selected):
                     raise ValueError(

@@ -56,25 +56,47 @@ def scope_prompt(prompt, mode):
     return prompt
 
 
-def summary_seeds(jobs, ids, run, *, allow_partial=False):
+def summary_seeds(jobs, ids, run, *, allow_partial=False, context=None):
     """Reuse catalog sections and student prose from their respective owners."""
     catalog, student = {}, {}
+    verified_runs = set()
     for job in sorted(
         (jobs.status(i) for i in ids), key=lambda j: (j["created_at"], j["job_id"])
     ):
-        if (job["status"] != "complete" and not allow_partial) or job[
-            "source_run"
-        ] != run:
+        if job["status"] != "complete" and not allow_partial:
             raise ValueError(
-                "Student summary reuse requires completed jobs from the same snapshot"
+                "Student summary reuse requires completed jobs"
             )
+        if job["source_run"] != run:
+            if context is None or allow_partial:
+                raise ValueError(
+                    "Cross-snapshot summary reuse requires complete jobs and catalog evidence checks"
+                )
+            if job["source_run"] not in verified_runs:
+                from .course_context import CourseContext
+                from .reuse import facts
+                from .store import Store
+
+                source = Store(jobs.root, readonly=True)
+                try:
+                    old = CourseContext(source, job["source_run"], catalog_only=True)
+                    if old.courses.keys() != context.courses.keys() or any(
+                        facts(old.get(key)) != facts(context.get(key))
+                        for key in old.courses
+                    ):
+                        raise ValueError(
+                            "Cross-snapshot summary reuse requires identical catalog evidence; refresh catalog enrichment first"
+                        )
+                finally:
+                    source.close()
+                verified_runs.add(job["source_run"])
         spec = json.loads(job["spec_json"])
         job_profile = spec["profile"]
         owns_student = spec["task"].get("workflow") == "student_summary_v1"
         for row in jobs.db.execute(
-            select(results.c.course_id, results.c.output_json).where(
-                results.c.job_id == job["job_id"], results.c.status == "complete"
-            ),
+            select(
+                results.c.course_id, results.c.output_json, results.c.input_json
+            ).where(results.c.job_id == job["job_id"], results.c.status == "complete"),
         ):
             original = json.loads(row["output_json"])
             profile = dict(job_profile)
@@ -85,6 +107,13 @@ def summary_seeds(jobs, ids, run, *, allow_partial=False):
             target[row["course_id"]] = {
                 "job_id": job["job_id"],
                 "profile": profile,
+                "source_run": job["source_run"],
+                "student_context": json.loads(row["input_json"]).get("student_context")
+                if owns_student
+                else None,
+                "section_origins": copy.deepcopy(
+                    original.get("provenance", {}).get("section_origins", {})
+                ),
                 "failed_subtasks": [
                     t
                     for t in original.get("provenance", {}).get("subtasks", [])
@@ -245,6 +274,87 @@ def validate_claims(value, payload):
         raise ValueError("Name the supplied current instructor exactly in the summary")
 
 
+def summary_request(source, mode, reviews, person=None):
+    return {
+        "course_id": source["course_id"],
+        "mode": mode,
+        "term_id": source["term_id"],
+        "term_name": source["term_name"],
+        "instructor_name": person["name"] if person else None,
+        "reviews": [
+            {
+                **{
+                    k: v
+                    for k, v in r.items()
+                    if k
+                    not in {
+                        "id",
+                        "source_review_id",
+                        "instructor_id",
+                        "source_url",
+                        "course_id",
+                    }
+                },
+                "citation_id": f"review:{i + 1}",
+            }
+            for i, r in enumerate(reviews)
+        ],
+        "current_instructors": [p["name"] for p in source["current_instructors"]],
+        "teaching_history": [
+            {
+                "name": p["name"],
+                "terms": [t["term_name"] or t["term_id"] for t in p["terms"]],
+            }
+            for p in source.get("teaching_history", [])
+        ],
+    }
+
+
+def summary_requests(source):
+    requests, current = {}, []
+    for person in source["current_instructors"]:
+        if person["reviews"]:
+            requests[("professor", person["instructor_uid"])] = summary_request(
+                source, "professor", person["reviews"], person
+            )
+        current.extend({**r, "instructor_scope": "current"} for r in person["reviews"])
+    history = [
+        {**r, "instructor_scope": "historical"} for r in source["historical_reviews"]
+    ]
+    if current and history:
+        requests[("history", None)] = summary_request(source, "history", history)
+    overview = sample_reviews(current, 30) if current else history
+    if overview:
+        requests[("overview", None)] = summary_request(source, "overview", overview)
+    return requests
+
+
+def refresh_review_citations(value, reviews, run):
+    evidence = {r["id"]: r for r in reviews}
+    fields = {
+        "source_review_id": "source_review_id",
+        "source_instructor_id": "instructor_id",
+        "instructor_name": "instructor_name",
+        "review_date": "date",
+        "source_url": "source_url",
+    }
+    for claims in value.values():
+        for claim in claims:
+            for citation in claim["citations"]:
+                review = evidence.get(citation.get("review_id"))
+                if (
+                    citation.get("type") != "review"
+                    or review is None
+                    or any(
+                        citation.get(target) != review.get(origin)
+                        for target, origin in fields.items()
+                    )
+                ):
+                    return False
+                citation["run_id"] = run
+    return True
+
+
 def generate_student(profile, task, payload, generate=None):
     from .agents import generate_generic, ORCHESTRATOR, serialize_messages
     from .jobs import WORKER_VERSION
@@ -269,7 +379,18 @@ def generate_student(profile, task, payload, generate=None):
     old_profile = payload["summary_seed"].get("profile")
     if old_profile and prior.get("profile_hash") == digest(old_profile):
         same_profile = profile_identity(old_profile) == profile_identity(profile)
-    if not same_source or prior.get("task_hash") != digest(task) or not same_profile:
+    previous_context = payload["summary_seed"].get("student_context")
+    prior_requests = {}
+    if previous_context and prior.get("context_hash") in {
+        digest(previous_context),
+        digest(without_archive_refs(previous_context)),
+    }:
+        prior_requests = summary_requests(previous_context)
+    if (
+        (not same_source and not prior_requests)
+        or prior.get("task_hash") != digest(task)
+        or not same_profile
+    ):
         prior = {}
     reused_scopes = []
     traces, conversations, errors = [], [], []
@@ -278,13 +399,16 @@ def generate_student(profile, task, payload, generate=None):
     def run(mode, reviews, person=None):
         if not reviews:
             return None
+        request = summary_request(source, mode, reviews, person)
+        scope = (mode, person["instructor_uid"] if person else None)
+        same_scope = same_source or prior_requests.get(scope) == request
         failed = any(
             e["mode"] == mode
             and e.get("instructor_uid")
             == (person["instructor_uid"] if person else None)
             for e in prior.get("errors", [])
         )
-        if prior and not failed:
+        if prior and same_scope and not failed:
             empty = {
                 k: []
                 for k in (
@@ -321,51 +445,30 @@ def generate_student(profile, task, payload, generate=None):
                         for c in prior[k]
                         if c["citations"][0]["type"] == "review"
                     ]
-            if empty is not None and not any(
-                describes_review_availability(claim["text"])
-                or contains_inline_review_handle(claim["text"])
-                for claims in empty.values()
-                for claim in claims
+            if (
+                empty is not None
+                and refresh_review_citations(empty, reviews, payload["source_run"])
+                and not any(
+                    describes_review_availability(claim["text"])
+                    or contains_inline_review_handle(claim["text"])
+                    for claims in empty.values()
+                    for claim in claims
+                )
             ):
                 reused_scopes.append(
                     {
                         "mode": mode,
                         "instructor_uid": person["instructor_uid"] if person else None,
+                        "job_id": payload["summary_seed"]["job_id"],
+                        "source_run": payload["summary_seed"].get(
+                            "source_run", payload["source_run"]
+                        ),
+                        "request_hash": digest(request),
                     }
                 )
                 return empty
         shown = [{**r, "citation_id": f"review:{i + 1}"} for i, r in enumerate(reviews)]
         evidence = {r["citation_id"]: r for r in shown}
-        request = {
-            "course_id": source["course_id"],
-            "mode": mode,
-            "term_id": source["term_id"],
-            "term_name": source["term_name"],
-            "instructor_name": person["name"] if person else None,
-            "reviews": [
-                {
-                    k: v
-                    for k, v in r.items()
-                    if k
-                    not in {
-                        "id",
-                        "source_review_id",
-                        "instructor_id",
-                        "source_url",
-                        "course_id",
-                    }
-                }
-                for r in shown
-            ],
-            "current_instructors": [p["name"] for p in source["current_instructors"]],
-            "teaching_history": [
-                {
-                    "name": p["name"],
-                    "terms": [t["term_name"] or t["term_id"] for t in p["terms"]],
-                }
-                for p in source.get("teaching_history", [])
-            ],
-        }
         previous_failure = next(
             (
                 t
@@ -376,7 +479,7 @@ def generate_student(profile, task, payload, generate=None):
             ),
             None,
         )
-        if prior and previous_failure:
+        if prior and same_scope and previous_failure:
             request["_history"] = previous_failure.get("conversation", [])
             checks = previous_failure.get("grounding_checks", [])
             if checks:
@@ -393,11 +496,13 @@ def generate_student(profile, task, payload, generate=None):
             )
         thinking = bool(profile.get("thinking")) or bool(
             prior
+            and same_scope
             and previous_failure
             and previous_failure.get("error", "").startswith("UnexpectedModelBehavior:")
         )
         if (
             prior
+            and same_scope
             and previous_failure
             and "Model token limit" in previous_failure.get("error", "")
             and previous_failure.get("inference", {}).get("max_output_tokens", 0)
@@ -411,6 +516,7 @@ def generate_student(profile, task, payload, generate=None):
         if (
             thinking
             and prior
+            and same_scope
             and previous_failure
             and "Model token limit" in previous_failure.get("error", "")
         ):

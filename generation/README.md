@@ -597,6 +597,17 @@ Edit prompt text in `inference/prompts/`, output contracts in `inference/schemas
 
 For student-focused previews, run `enrich` with `--task inference/tasks/student_summary.json` and `--reuse-job` for the selected catalog enrichment jobs. The workflow uses the snapshot's current enrollment roster, summarizes each professor independently, and keeps other instructors’ reviews in a historical paragraph. Grade sentences are computed temporarily from raw letter-grade counts for the last three usable terms; no aggregate-stat table is exported. Review and grade citations identify their source rows. Results appear in `llm_student_summary_json`; prerequisite trees and supported catalog metadata are retained. Empty catalog descriptions suppress inferred search metadata; the source title and original archived output remain available.
 
+Completed student-summary jobs can also seed a new snapshot when the entire catalog
+evidence is unchanged. Repeat `--reuse-job` for the previously selected jobs and use
+`--limit 0` for full coverage. Catalog sections retain their original ownership.
+Each professor, historical paragraph, and overview is reused only when its actual
+model request, task, and model settings match. Reused review citations are checked
+against the current evidence and point to the new snapshot; the original jobs stay
+immutable. Rosters, recorded grades, and teaching history are recomposed without
+inference. Changed requests and previously failed sections are generated normally.
+Partial jobs cannot seed a different snapshot. If catalog evidence changed, refresh
+catalog enrichment before creating student summaries.
+
 Student previews also include cited teaching-term history without predicting future schedules. A separate grounding check compares each draft claim with its cited reviews and returns substantive errors to the same repair conversation. Writer and checker traces are retained, including failed attempts; schema validity alone does not establish factual accuracy.
 
 Grade and teaching citations also include `source_record`, identifying the archived observation by file, source, kind, and entity ID. Together with the citation’s run, term, and optional section number, this remains resolvable after a later snapshot replaces the row in a latest-only table.

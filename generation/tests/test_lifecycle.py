@@ -273,6 +273,50 @@ class LifecycleTests(unittest.TestCase):
         finally:
             jobs.close()
 
+    def test_summary_reuse_checks_catalog_across_snapshots(self):
+        import copy
+        from uwcourses.course_context import CourseContext
+        from uwcourses.student_summary import summary_seeds
+
+        self.core()
+        jobs = Jobs(self.root)
+        try:
+            parent = self.create_job(jobs)
+            original = {
+                "model": self.profile.model,
+                "model_revision": self.profile.revision,
+                "sections": {"search_profile": {"status": "valid", "value": {}}},
+            }
+            with jobs.db:
+                jobs.db.execute(
+                    "UPDATE jobs SET status='complete' WHERE job_id=?", (parent,)
+                )
+                jobs.db.execute(
+                    "UPDATE results SET status='complete',output_json=? WHERE job_id=?",
+                    (canonical(original), parent),
+                )
+            new = self.store.new_run(self.store.run(self.run)["semester"], {})
+            with self.store.db:
+                self.store.db.execute(
+                    "INSERT INTO observations (run_id,source,kind,entity_id,source_url,observed_at,content_hash,payload_json) "
+                    "SELECT ?,source,kind,entity_id,source_url,observed_at,content_hash,payload_json FROM observations WHERE run_id=?",
+                    (new, self.run),
+                )
+            self.store.finish(new)
+            context = CourseContext(self.store, new, catalog_only=True)
+            seeds = summary_seeds(jobs, [parent], new, context=context)
+            self.assertEqual(set(seeds), set(context.courses))
+            self.assertTrue(all(s["source_run"] == self.run for s in seeds.values()))
+            course = next(iter(context.courses))
+            context.courses = copy.deepcopy(context.courses)
+            context.courses[course]["description"] += " Changed catalog evidence."
+            with self.assertRaisesRegex(ValueError, "identical catalog evidence"):
+                summary_seeds(jobs, [parent], new, context=context)
+            with self.assertRaises(ValueError):
+                summary_seeds(jobs, [parent], new, context=context, allow_partial=True)
+        finally:
+            jobs.close()
+
     def test_partial_summary_reuse_freezes_completed_results(self):
         from uwcourses.student_summary import summary_seeds
 
